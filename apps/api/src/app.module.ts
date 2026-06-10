@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuctionEngineModule } from './modules/auction-engine/auction-engine.module';
 import { LotsModule } from './modules/lots/lots.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PushModule } from './modules/push/push.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SellRequestsModule } from './modules/sell-requests/sell-requests.module';
@@ -26,6 +27,7 @@ function redisConnection() {
     PrismaModule,
     RedisModule,
     RealtimeModule,
+    PushModule,
     AuthModule,
     SettingsModule,
     NotificationsModule,

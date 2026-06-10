@@ -19,6 +19,9 @@ export class AuctionProcessor extends WorkerHost {
       case 'close':
         await this.lifecycle.closeLot(job.data.lotId!);
         break;
+      case 'ending-soon':
+        await this.lifecycle.notifyEndingSoon(job.data.lotId!);
+        break;
       case 'sweep':
         await this.lifecycle.sweep();
         break;

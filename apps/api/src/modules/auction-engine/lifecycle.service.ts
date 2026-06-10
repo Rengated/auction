@@ -12,6 +12,7 @@ import { lotToTick } from '../lots/lot.mapper';
 
 export const AUCTION_QUEUE = 'auction';
 const SWEEP_INTERVAL_MS = 30_000;
+const ENDING_SOON_MS = 5 * 60_000;
 
 interface LockedRow {
   id: string;
@@ -77,11 +78,38 @@ export class LifecycleService implements OnModuleInit {
       { lotId },
       { jobId, delay: Math.max(0, endsAt.getTime() - Date.now()), removeOnComplete: true, removeOnFail: true },
     );
+    // «Лот скоро закроется» — за 5 минут до конца (переустанавливается при продлении)
+    const endingDelay = endsAt.getTime() - ENDING_SOON_MS - Date.now();
+    await this.queue.remove(`ending-${lotId}`).catch(() => undefined);
+    if (endingDelay > 0) {
+      await this.queue.add(
+        'ending-soon',
+        { lotId },
+        { jobId: `ending-${lotId}`, delay: endingDelay, removeOnComplete: true, removeOnFail: true },
+      );
+    }
+  }
+
+  /** Уведомление «лот скоро закроется» участникам и подписавшимся (избранное). */
+  async notifyEndingSoon(lotId: string): Promise<void> {
+    const lot = await this.prisma.lot.findUnique({ where: { id: lotId } });
+    if (!lot || lot.status !== 'live') return;
+    if (lot.endsAt.getTime() - Date.now() > ENDING_SOON_MS + 60_000) return; // продлено — джоба устарела
+    const [bidders, favs] = await Promise.all([
+      this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } }),
+      this.prisma.favorite.findMany({ where: { lotId }, select: { userId: true } }),
+    ]);
+    const userIds = new Set<string>([...bidders.map((b) => b.userId), ...favs.map((f) => f.userId)]);
+    const title = `${lot.make} ${lot.model}`;
+    for (const userId of userIds) {
+      await this.notifications.notify(userId, 'lot_ending', { lotId, lotTitle: title });
+    }
   }
 
   async cancelJobs(lotId: string): Promise<void> {
     await this.queue.remove(`open-${lotId}`).catch(() => undefined);
     await this.queue.remove(`close-${lotId}`).catch(() => undefined);
+    await this.queue.remove(`ending-${lotId}`).catch(() => undefined);
   }
 
   /** Поллер: дооткрывает/дозакрывает пропущенное. */

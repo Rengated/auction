@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { rub, type MeDto, type NotificationDto } from '@hermes/shared';
 import {
+  useConfig,
   useMe,
   useNotifications,
   useMyBids,
@@ -11,6 +12,7 @@ import {
   logout,
   type MyBidRow,
 } from '../lib/queries';
+import { disablePush, enablePush, getPushState, type PushState } from '../lib/push';
 import { useNow } from '../lib/time';
 import { useIsMobile } from '../lib/layout';
 import { relTime } from '../components/bid-list';
@@ -104,6 +106,36 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
   );
 }
 
+/** Тоггл Web Push: подписка на пуши «перебили / выигран / скоро конец». */
+function PushToggle() {
+  const { data: cfg } = useConfig();
+  const [state, setState] = useState<PushState>('off');
+  useEffect(() => {
+    getPushState().then(setState);
+  }, []);
+  if (state === 'unsupported' || !cfg?.vapidPublicKey) return null;
+  const on = state === 'on';
+  return (
+    <div className="card" style={{ padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Push-уведомления</div>
+        <div className="num" style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 4 }}>
+          {state === 'denied' ? 'заблокированы в настройках браузера' : 'перебитие, победа, финал торгов — даже при закрытом приложении'}
+        </div>
+      </div>
+      <button
+        className={`chip ${on ? 'on' : ''}`}
+        disabled={state === 'denied'}
+        onClick={async () => {
+          setState(on ? await disablePush() : await enablePush(cfg.vapidPublicKey!));
+        }}
+      >
+        {on ? 'включены' : 'включить'}
+      </button>
+    </div>
+  );
+}
+
 /** Список уведомлений (общий) — при маунте помечаем прочитанными. */
 function NotifList({ mobile }: { mobile: boolean }) {
   const { data: items = [] } = useNotifications(true);
@@ -115,10 +147,16 @@ function NotifList({ mobile }: { mobile: boolean }) {
   }, []);
 
   if (items.length === 0) {
-    return <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Уведомлений нет</div>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <PushToggle />
+        <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Уведомлений нет</div>
+      </div>
+    );
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <PushToggle />
       {items.map((n) => {
         const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
         return (
