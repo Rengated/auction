@@ -79,7 +79,7 @@ export class AuthService {
       sameSite: 'lax',
       secure,
       maxAge: REFRESH_TTL_SEC * 1000,
-      path: '/auth',
+      path: '/',
     });
   }
 
@@ -103,7 +103,7 @@ export class AuthService {
       });
     }
     res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/auth' });
+    res.clearCookie('refresh_token', { path: '/' });
   }
 
   verifyAccess(token: string): JwtPayload {

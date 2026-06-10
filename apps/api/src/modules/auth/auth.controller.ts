@@ -41,7 +41,7 @@ export class AuthController {
     }
     const nonce = randomBytes(16).toString('hex');
     const state = `${nonce}:${target === 'admin' ? 'admin' : 'web'}`;
-    res.cookie('oauth_state', state, { httpOnly: true, sameSite: 'lax', maxAge: 10 * 60_000, path: '/auth' });
+    res.cookie('oauth_state', state, { httpOnly: true, sameSite: 'lax', maxAge: 10 * 60_000, path: '/' });
     return res.redirect(this.yandex.authorizeUrl(state));
   }
 
@@ -55,7 +55,7 @@ export class AuthController {
   ) {
     const saved = req.cookies?.oauth_state;
     if (!saved || saved !== state) throw new UnauthorizedException('Bad OAuth state');
-    res.clearCookie('oauth_state', { path: '/auth' });
+    res.clearCookie('oauth_state', { path: '/' });
     const target = state.endsWith(':admin') ? 'admin' : 'web';
     const profile = await this.yandex.exchangeCode(code);
     const user = await this.auth.upsertFromYandex(profile);
