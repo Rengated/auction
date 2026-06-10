@@ -1,7 +1,183 @@
+import { useEffect } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import './styles/admin.css';
+import { API_ORIGIN } from './lib/api';
+import { logout, queryClient, useAdminLots, useMe } from './lib/queries';
+import { getSocket } from './lib/ws';
+import { AI, HermesH } from './components/icons';
+import { DashboardPage } from './pages/dashboard';
+import { LotsPage } from './pages/lots';
+import { LotFormPage } from './pages/lot-form';
+import { AuctionsPage } from './pages/auctions';
+import { AuctionControlPage } from './pages/auction-control';
+import { DealsPage } from './pages/deals';
+import { DealDetailPage } from './pages/deal-detail';
+import { UsersPage } from './pages/users';
+import { SettingsPage } from './pages/settings';
+
+function Login({ denied }: { denied?: boolean }) {
+  return (
+    <div className="login-stage">
+      <div className="login-card">
+        <div className="logo" style={{ padding: 0, marginBottom: 18 }}>
+          <HermesH size={34} />
+          <div>
+            <div className="nm">Hermes Trade</div>
+            <div className="sub">админ-панель</div>
+          </div>
+        </div>
+        {denied ? (
+          <>
+            <div style={{ font: '700 16px/1.3 var(--ui)', marginBottom: 8 }}>Нет доступа</div>
+            <div style={{ font: '500 13.5px/1.5 var(--ui)', color: 'var(--dim)', marginBottom: 18 }}>
+              Ваш аккаунт не имеет роли менеджера. Обратитесь к администратору салона.
+            </div>
+            <button className="btn ghost" style={{ width: '100%', justifyContent: 'center' }} onClick={() => logout().then(() => location.reload())}>
+              Сменить аккаунт
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ font: '500 13.5px/1.5 var(--ui)', color: 'var(--dim)', marginBottom: 18 }}>
+              Вход для менеджеров салона — через Яндекс ID.
+            </div>
+            <button
+              className="btn acc"
+              style={{ width: '100%', justifyContent: 'center', padding: 14 }}
+              onClick={() => (location.href = `${API_ORIGIN}/auth/yandex?target=admin`)}
+            >
+              Войти через Яндекс ID
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Sidebar() {
+  const location = useLocation();
+  const { data: me } = useMe();
+  const { data: lots = [] } = useAdminLots('all');
+  const liveN = lots.filter((l) => l.status === 'live').length;
+  const items = [
+    ['/', 'Дашборд', AI.dash, null],
+    ['/lots', 'Лоты', AI.lots, lots.length || null],
+    ['/auctions', 'Торги', AI.gavel, liveN || null],
+    ['/deals', 'Сделки', AI.deals, null],
+    ['/users', 'Пользователи', AI.users, null],
+    ['/settings', 'Параметры', AI.gear, null],
+  ] as const;
+  const active = (p: string) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p));
+  return (
+    <div className="side">
+      <div className="logo">
+        <HermesH size={34} />
+        <div>
+          <div className="nm">Hermes Trade</div>
+          <div className="sub">админ-панель</div>
+        </div>
+      </div>
+      <div className="side-sec">Управление</div>
+      {items.map(([path, label, icon, badge]) => (
+        <Link key={path} to={path} style={{ textDecoration: 'none' }}>
+          <button className={`navbtn ${active(path) ? 'on' : ''}`}>
+            <span className="ic">{icon}</span>
+            {label}
+            {badge ? (
+              <span className="badge" style={path === '/auctions' ? {} : { background: 'var(--panel3)', color: 'var(--dim)' }}>
+                {badge}
+              </span>
+            ) : null}
+          </button>
+        </Link>
+      ))}
+      <div className="side-foot">
+        <div className="av">{(me?.displayName?.[0] ?? 'М').toUpperCase()}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="who">{me?.displayName ?? '—'}</div>
+          <div className="role">{me?.role === 'admin' ? 'администратор' : 'менеджер торгов'}</div>
+        </div>
+        <button className="iconbtn2" title="Выйти" onClick={() => logout().then(() => window.location.reload())}>
+          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16 }} stroke="currentColor" fill="none" strokeWidth={1.8}>
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const TITLES: Array<[string, string, string]> = [
+  ['/lots/new', 'Лоты', 'Новый лот'],
+  ['/lots', 'Управление', 'Лоты'],
+  ['/auctions', 'Управление', 'Торги'],
+  ['/deals', 'Управление', 'Сделки'],
+  ['/users', 'Управление', 'Пользователи'],
+  ['/settings', 'Управление', 'Параметры аукциона'],
+  ['/', 'Hermes Trade', 'Дашборд'],
+];
+
+function Topbar() {
+  const location = useLocation();
+  const [, crumb, title] = TITLES.find(([p]) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p))) ?? TITLES.at(-1)!;
+  const date = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  return (
+    <div className="topbar">
+      <div>
+        <div className="crumb">{crumb}</div>
+        <h1>{title}</h1>
+      </div>
+      <span className="num" style={{ fontSize: 13, color: 'var(--faint)', textTransform: 'capitalize' }}>{date}</span>
+    </div>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    getSocket();
+  }, []);
+  return (
+    <div className="admin">
+      <Sidebar />
+      <div className="main">
+        <Topbar />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Gate({ children }: { children: React.ReactNode }) {
+  const { data: me, isLoading } = useMe();
+  if (isLoading) return <div className="login-stage" style={{ color: 'var(--faint)' }}>Hermes Trade…</div>;
+  if (!me) return <Login />;
+  if (me.role === 'buyer') return <Login denied />;
+  return <Shell>{children}</Shell>;
+}
+
 export function App() {
   return (
-    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <p>Hermes Trade — админка (этап 3)</p>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Gate>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/lots" element={<LotsPage />} />
+            <Route path="/lots/new" element={<LotFormPage />} />
+            <Route path="/lots/:id/edit" element={<LotFormPage />} />
+            <Route path="/lots/:id/relist" element={<LotFormPage relist />} />
+            <Route path="/auctions" element={<AuctionsPage />} />
+            <Route path="/auctions/:id" element={<AuctionControlPage />} />
+            <Route path="/deals" element={<DealsPage />} />
+            <Route path="/deals/:id" element={<DealDetailPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Gate>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

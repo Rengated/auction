@@ -1,0 +1,275 @@
+import { useState } from 'react';
+import { AI, Ic } from '../components/icons';
+import { usePatchUser, useUsers, type AdminUser, type UsersFilter } from '../lib/queries';
+
+const ROLE_LABEL: Record<AdminUser['role'], string> = { buyer: 'Покупатель', manager: 'Менеджер', admin: 'Админ' };
+
+const isBlocked = (u: AdminUser) => u.blockPermanent || Boolean(u.blockedUntil);
+const blockLabel = (u: AdminUser) =>
+  u.blockPermanent ? 'навсегда' : u.blockedUntil ? `до ${new Date(u.blockedUntil).toLocaleDateString('ru-RU')}` : '';
+
+function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
+  const patch = usePatchUser();
+  const [role, setRole] = useState<AdminUser['role']>(user.role);
+  const [verified, setVerified] = useState(user.verified);
+  const [blocked, setBlocked] = useState(isBlocked(user));
+  const [mode, setMode] = useState<'until' | 'perm'>(user.blockPermanent ? 'perm' : 'until');
+  const [until, setUntil] = useState(user.blockedUntil ? user.blockedUntil.slice(0, 10) : '');
+  const [reason, setReason] = useState(user.blockReason ?? '');
+
+  const canSave = !patch.isPending && !(blocked && mode === 'until' && !until);
+  const save = () =>
+    patch.mutate(
+      {
+        id: user.id,
+        role,
+        verified,
+        blockedUntil: blocked ? (mode === 'perm' ? 'perm' : new Date(`${until}T23:59:59`).toISOString()) : null,
+        blockReason: blocked ? reason : '',
+      },
+      { onSuccess: onBack },
+    );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+        <button className="iconbtn2" onClick={onBack} style={{ width: 38, height: 38 }}>{AI.back}</button>
+        <div>
+          <div className="crumb">Пользователи / Карточка</div>
+          <h1 style={{ font: '800 22px/1 var(--ui)', margin: 0, letterSpacing: '-0.02em' }}>{user.name}</h1>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+          <button className="btn ghost" onClick={onBack}>Отмена</button>
+          <button className="btn acc" disabled={!canSave} onClick={save}>Сохранить</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+        <div className="pcard">
+          <div className="ph"><h3>Данные пользователя</h3></div>
+          <div style={{ padding: 20 }}>
+            <div className="form-grid">
+              <div className="span2"><label className="fld-l">ФИО</label><input className="in" readOnly value={user.name} /></div>
+              <div><label className="fld-l">Телефон</label><input className="in num" readOnly value={user.phone ?? ''} placeholder="—" /></div>
+              <div><label className="fld-l">Email</label><input className="in" readOnly value={user.email ?? ''} placeholder="—" /></div>
+              <div><label className="fld-l">Город</label><input className="in" readOnly value={user.city ?? ''} placeholder="—" /></div>
+            </div>
+            <div className="hint">Профиль заполняется пользователем при входе через Яндекс ID.</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="pcard">
+            <div className="ph"><h3>Роль и доступ</h3></div>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label className="fld-l">Роль</label>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  {(
+                    [['buyer', 'Покупатель'], ['manager', 'Менеджер'], ['admin', 'Админ']] as Array<[AdminUser['role'], string]>
+                  ).map(([k, l]) => (
+                    <button
+                      key={k}
+                      className="btn sm"
+                      onClick={() => setRole(k)}
+                      style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        ...(role === k
+                          ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+                          : { background: 'transparent', border: '1px solid var(--line2)' }),
+                      }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <div className="hint">
+                  {role === 'buyer' ? 'Может делать ставки и выигрывать лоты.' : role === 'manager' ? 'Доступ к админке: лоты, торги, сделки.' : 'Полный доступ, включая параметры.'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
+                <div>
+                  <div className="t" style={{ font: '600 14px/1 var(--ui)' }}>Верифицирован</div>
+                  <div className="hint" style={{ marginTop: 6 }}>паспорт проверен</div>
+                </div>
+                <div className={`tg ${verified ? 'on' : ''}`} onClick={() => setVerified((v) => !v)}></div>
+              </div>
+            </div>
+          </div>
+
+          {/* blocking */}
+          <div className="pcard" style={{ borderColor: blocked ? 'color-mix(in srgb, var(--live) 40%, var(--line))' : 'var(--line)' }}>
+            <div className="ph"><div><h3>Блокировка</h3><div className="sub">запрет ставок и входа</div></div></div>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div className="t" style={{ font: '600 14px/1 var(--ui)', color: blocked ? 'var(--live)' : 'var(--ink)' }}>
+                    {blocked ? 'Пользователь заблокирован' : 'Доступ открыт'}
+                  </div>
+                  <div className="hint" style={{ marginTop: 6 }}>{blocked ? 'не может делать ставки' : 'участвует в торгах'}</div>
+                </div>
+                <div className={`tg ${blocked ? 'on' : ''}`} onClick={() => setBlocked((b) => !b)} style={blocked ? { background: 'var(--live)' } : undefined}></div>
+              </div>
+
+              {blocked && (
+                <>
+                  <div>
+                    <label className="fld-l">Срок</label>
+                    <div style={{ display: 'flex', gap: 7 }}>
+                      {([['until', 'До даты'], ['perm', 'Навсегда']] as Array<['until' | 'perm', string]>).map(([k, l]) => (
+                        <button
+                          key={k}
+                          className="btn sm"
+                          onClick={() => setMode(k)}
+                          style={{
+                            flex: 1,
+                            justifyContent: 'center',
+                            ...(mode === k
+                              ? { background: 'var(--live-soft)', color: 'var(--live)' }
+                              : { background: 'transparent', border: '1px solid var(--line2)' }),
+                          }}
+                        >
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {mode === 'until' && (
+                    <div>
+                      <label className="fld-l">Заблокировать до</label>
+                      <input className="in num" type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
+                    </div>
+                  )}
+                  <div>
+                    <label className="fld-l">Причина</label>
+                    <textarea className="in" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Неоплата лота, накрутка ставок, жалобы…" style={{ minHeight: 64 }}></textarea>
+                  </div>
+                  <div className="hint" style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <span style={{ width: 14, height: 14, color: 'var(--live)', flex: 'none', marginTop: 1, display: 'inline-flex' }}>{AI.ban}</span>
+                    {mode === 'perm' ? 'Блокировка навсегда — снимается только вручную.' : 'Доступ восстановится автоматически после указанной даты.'}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="pcard">
+            <div className="ph"><h3>Активность</h3></div>
+            <div style={{ padding: 20, display: 'flex', gap: 22 }}>
+              <div>
+                <div className="l" style={{ font: '600 10px/1 var(--num)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--faint)' }}>Ставок</div>
+                <div className="num" style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{user.bids}</div>
+              </div>
+              <div>
+                <div className="l" style={{ font: '600 10px/1 var(--num)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--faint)' }}>Побед</div>
+                <div className="num" style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{user.wins}</div>
+              </div>
+              <div>
+                <div className="l" style={{ font: '600 10px/1 var(--num)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--faint)' }}>С нами с</div>
+                <div className="num" style={{ fontSize: 15, fontWeight: 600, marginTop: 12 }}>{new Date(user.joined).toLocaleDateString('ru-RU')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function UsersPage() {
+  const [f, setF] = useState<UsersFilter>('all');
+  const [selected, setSelected] = useState<AdminUser | null>(null);
+  const { data: users = [] } = useUsers(f);
+  const { data: allUsers = [] } = useUsers('all');
+  const blockedN = allUsers.filter(isBlocked).length;
+  const tabs: Array<[UsersFilter, string]> = [['all', 'Все'], ['buyer', 'Покупатели'], ['manager', 'Команда'], ['blocked', 'Заблокированные']];
+
+  if (selected) {
+    return (
+      <div className="content fade">
+        <UserCard key={selected.id} user={selected} onBack={() => setSelected(null)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="content fade">
+      <div className="pcard">
+        <div className="ph">
+          <div style={{ display: 'flex', gap: 7 }}>
+            {tabs.map(([k, l]) => (
+              <button
+                key={k}
+                className="btn sm"
+                onClick={() => setF(k)}
+                style={f === k ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : { background: 'transparent', border: '1px solid var(--line2)' }}
+              >
+                {l}{k === 'blocked' && blockedN ? ` · ${blockedN}` : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+        <table className="tb">
+          <thead><tr><th>Пользователь</th><th>Телефон</th><th>Город</th><th>Роль</th><th>Статус</th><th>Ставок / побед</th><th></th></tr></thead>
+          <tbody>
+            {users.length === 0 ? (
+              <tr><td className="empty" colSpan={7}>Пользователей нет</td></tr>
+            ) : (
+              users.map((u) => {
+                const blocked = isBlocked(u);
+                return (
+                  <tr className="row" key={u.id} style={blocked ? { background: 'color-mix(in srgb, var(--live) 5%, transparent)' } : undefined}>
+                    <td>
+                      <div className="lotcell">
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: blocked ? 'var(--live-soft)' : 'var(--panel3)', display: 'grid', placeItems: 'center', font: '700 14px/1 var(--num)', color: blocked ? 'var(--live)' : 'var(--accent)', flex: 'none' }}>
+                          {u.name[0]}
+                        </div>
+                        <div>
+                          <div className="nm">{u.name}</div>
+                          <div className="meta">{u.email ?? '—'}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="num" style={{ color: 'var(--dim)' }}>{u.phone ?? '—'}</td>
+                    <td style={{ color: 'var(--dim)' }}>{u.city ?? '—'}</td>
+                    <td>
+                      <span className="sb" style={{ background: u.role === 'buyer' ? 'var(--panel3)' : 'var(--accent-soft)', color: u.role === 'buyer' ? 'var(--dim)' : 'var(--accent)' }}>
+                        {ROLE_LABEL[u.role]}
+                      </span>
+                    </td>
+                    <td>
+                      {blocked ? (
+                        <span className="sb" style={{ background: 'var(--live-soft)', color: 'var(--live)' }}>
+                          <Ic d={AI.ban} s={12} /> {blockLabel(u)}
+                        </span>
+                      ) : u.verified ? (
+                        <span className="sb sold">✓ вериф.</span>
+                      ) : (
+                        <span className="sb fin">не пройдена</span>
+                      )}
+                    </td>
+                    <td className="num">{u.bids} / {u.wins}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="iconbtn2"
+                          title={blocked ? 'Разблокировать' : 'Заблокировать'}
+                          onClick={() => setSelected(u)}
+                          style={blocked ? { color: 'var(--live)', borderColor: 'color-mix(in srgb, var(--live) 40%, var(--line2))' } : undefined}
+                        >
+                          {AI.ban}
+                        </button>
+                        <button className="iconbtn2" title="Карточка" onClick={() => setSelected(u)}>{AI.eye}</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
