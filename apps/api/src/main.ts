@@ -1,4 +1,9 @@
 import 'reflect-metadata';
+
+// BigInt из Prisma в JSON-ответах сериализуется числом (суммы < 2^53)
+(BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function () {
+  return Number(this);
+};
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
