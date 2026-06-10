@@ -1,0 +1,123 @@
+/* ============================================================
+   Автоаукцион — Web (desktop) layout  ·  "Concours"
+   Reuses tokens from hifi.css; adds desktop chrome.
+   ============================================================ */
+
+/* auth gate */
+.web-auth-grid { background: var(--page-bg); }
+@media (max-width: 860px) {
+  .web-auth-grid { grid-template-columns: 1fr !important; }
+  .web-auth-hero { display: none !important; }
+}
+
+.web {
+  min-height: 100vh;
+  background: var(--page-bg);
+  color: var(--text);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+.web[data-theme="light"] {
+  --bg:#f7f7f5; --surface:#ffffff; --surface-2:#eef0f2; --surface-3:#e2e5e9;
+  --line:#dde0e4; --line-soft:#ebedf0; --text:#15171b; --text-dim:#545a63; --text-faint:#878d96;
+  --page-bg: radial-gradient(120% 70% at 50% -10%, #ffffff 0%, #edeff1 60%);
+  --shadow: 0 22px 48px -26px rgba(20,24,30,0.22);
+}
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+
+/* ---------- top bar ------------------------------------------ */
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line-soft);
+}
+.topbar .row { display: flex; align-items: center; gap: 20px; height: 68px; }
+.brand { font: 800 19px/1 var(--ui); letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+.brand b { color: var(--accent); }
+.nav-links { display: flex; gap: 4px; }
+.nav-links a {
+  font: 600 14px/1 var(--ui); color: var(--text-dim); text-decoration: none;
+  padding: 9px 13px; border-radius: 9px; cursor: pointer; transition: all .14s ease; white-space: nowrap;
+}
+.nav-links a:hover { color: var(--text); background: var(--surface-2); }
+.nav-links a.on { color: var(--accent); }
+.topsearch {
+  flex: 1; min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 9px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px;
+  color: var(--text-faint); font-size: 14px;
+}
+.topsearch span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topsearch svg { width: 17px; height: 17px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; }
+@media (max-width: 960px) { .nav-links { display: none; } }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line);
+  display: grid; place-items: center; font: 700 15px/1 var(--num); color: var(--accent); cursor: pointer; flex: none; }
+
+/* ---------- buttons / chips (web sizes) ---------------------- */
+.wbtn {
+  font: 600 14px/1 var(--ui); border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer;
+  background: var(--surface-2); color: var(--text); display: inline-flex; align-items: center; gap: 8px;
+  transition: transform .1s ease, filter .15s ease; white-space: nowrap;
+}
+.wbtn:active { transform: scale(.98); }
+.wbtn.accent { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 80%, #000)); color: #fff; font-weight: 700; box-shadow: 0 10px 24px -12px var(--accent-glow); }
+.wbtn.accent:hover { filter: brightness(1.06); }
+.wbtn.ghost { background: transparent; border: 1px solid var(--line); }
+.wbtn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+
+.wchip { font: 500 13px/1 var(--ui); padding: 9px 15px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text-dim); cursor: pointer; white-space: nowrap; transition: all .14s ease; }
+.wchip.on { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); font-weight: 600; }
+.wchip:hover { color: var(--text); }
+
+/* ---------- page heading ------------------------------------ */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 38px 0 22px; }
+.page-head h1 { font: 800 34px/1 var(--ui); letter-spacing: -0.025em; margin: 0; }
+.eyebrow-w { font: 600 11px/1 var(--num); letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
+
+/* ---------- catalog grid ------------------------------------ */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding-bottom: 64px; }
+@media (max-width: 1080px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px)  { .grid { grid-template-columns: 1fr; } .wrap { padding: 0 18px; } }
+
+.wcard { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  overflow: hidden; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; text-align: left; }
+.wcard:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--line); }
+
+/* ---------- lot page ---------------------------------------- */
+.lot-grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; align-items: start; padding-bottom: 72px; }
+@media (max-width: 980px) { .lot-grid { grid-template-columns: 1fr; } }
+
+.gallery-main { border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line-soft); }
+.thumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 12px; }
+.thumb { height: 70px; border-radius: 9px; overflow: hidden; border: 1px solid var(--line-soft); }
+.thumb.on { border: 2px solid var(--accent); }
+
+.bidbox { position: sticky; top: 90px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; box-shadow: var(--shadow); }
+
+.statline { display: flex; gap: 0; border: 1px solid var(--line-soft); border-radius: var(--r-md); overflow: hidden; margin: 16px 0; }
+.statline > div { flex: 1; padding: 14px 16px; }
+.statline > div + div { border-left: 1px solid var(--line-soft); }
+
+.wseg { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 11px; padding: 4px; }
+.wseg button { flex: 1; border: 0; background: none; color: var(--text-dim); font: 600 14px/1 var(--ui); padding: 11px; border-radius: 8px; cursor: pointer; transition: all .14s ease; }
+.wseg button.on { background: var(--surface-3); color: var(--text); }
+
+.specgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+
+.feed-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.feed-row:last-child { border-bottom: 0; }
+
+/* ---------- footer ------------------------------------------ */
+.foot { border-top: 1px solid var(--line-soft); margin-top: 24px; }
+.foot .row { display: flex; justify-content: space-between; align-items: center; padding: 28px 0; color: var(--text-faint); font-size: 13px; flex-wrap: wrap; gap: 14px; }
+
+/* fade */
+.viewfade { animation: vf .28s ease; }
+@keyframes vf { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* web bid input reuse — make taller */
+.bidbox .bid-input { border-radius: 11px; }
+.bidbox .bid-input .field input { font-size: 22px; padding: 14px 0 5px; }
+.bidbox .bid-input .step { width: 50px; font-size: 26px; }

@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  buyer
+  manager
+  admin
+}
+
+enum LotStatus {
+  draft
+  upcoming
+  live
+  sold
+  finished
+  withdrawn
+}
+
+enum DealStatus {
+  pending
+  contract
+  closed
+}
+
+enum NotificationType {
+  outbid
+  won
+  lot_starting
+  lot_ending
+  deal_update
+  system
+}
+
+enum SellRequestStatus {
+  new
+  in_review
+  accepted
+  rejected
+}
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  yandexId    String    @unique @map("yandex_id")
+  role        Role      @default(buyer)
+  displayName String    @map("display_name")
+  avatarUrl   String?   @map("avatar_url")
+  // Контакты для участия в торгах (гейтинг)
+  fullName    String?   @map("full_name")
+  phone       String?
+  email       String?
+  city        String?
+  contactsFilledAt DateTime? @map("contacts_filled_at") @db.Timestamptz()
+  blockedUntil DateTime? @map("blocked_until") @db.Timestamptz()
+  blockReason String?   @map("block_reason")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  bids          Bid[]
+  refreshTokens RefreshToken[]
+  favorites     Favorite[]
+  notifications Notification[]
+  pushSubs      PushSubscription[]
+  sellRequests  SellRequest[]
+  wonDeals      Deal[]   @relation("winner")
+  managedDeals  Deal[]   @relation("manager")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @map("token_hash")
+  userAgent String?   @map("user_agent")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz()
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model Lot {
+  id        String    @id @default(uuid()) @db.Uuid
+  make      String
+  family    String
+  model     String
+  year      Int
+  status    LotStatus @default(draft)
+  published Boolean   @default(false)
+
+  // Деньги — целые рубли в BigInt
+  startPrice   BigInt  @map("start_price")
+  reservePrice BigInt  @map("reserve_price")
+  bidStep      BigInt? @map("bid_step") // NULL → settings.default_bid_step
+  currentPrice BigInt  @map("current_price")
+  currentBidId String? @unique @map("current_bid_id") @db.Uuid
+  currentBid   Bid?    @relation("currentBid", fields: [currentBidId], references: [id])
+  reserveMet   Boolean @default(false) @map("reserve_met")
+
+  startsAt        DateTime  @map("starts_at") @db.Timestamptz()
+  endsAt          DateTime  @map("ends_at") @db.Timestamptz()
+  originalEndsAt  DateTime  @map("original_ends_at") @db.Timestamptz()
+
+  bidCount      Int @default(0) @map("bid_count")
+  watchersCount Int @default(0) @map("watchers_count")
+
+  mileage      Int
+  engine       String
+  power        Int
+  fuel         String
+  transmission String
+  drive        String
+  body         String
+  color        String
+  vin          String?
+  description  String  @default("")
+  options      Json    @default("[]")
+  autoteka     Json?
+
+  relistedFromLotId String? @map("relisted_from_lot_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  photos        LotPhoto[]
+  bids          Bid[]
+  favorites     Favorite[]
+  deal          Deal?
+  auctionEvents AuctionEvent[]
+
+  @@index([status, endsAt])
+  @@index([status, startsAt])
+  @@map("lots")
+}
+
+model LotPhoto {
+  id        String   @id @default(uuid()) @db.Uuid
+  lotId     String   @map("lot_id") @db.Uuid
+  lot       Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  objectKey String   @map("object_key")
+  /** Внешний URL (сид-данные/Unsplash); если задан — приоритетнее objectKey */
+  externalUrl String? @map("external_url")
+  sort      Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([lotId, sort])
+  @@map("lot_photos")
+}
+
+model Bid {
+  id          String    @id @default(uuid()) @db.Uuid
+  lotId       String    @map("lot_id") @db.Uuid
+  lot         Lot       @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id])
+  amount      BigInt
+  clientBidId String    @map("client_bid_id") @db.Uuid
+  rejectedAt  DateTime? @map("rejected_at") @db.Timestamptz()
+  rejectedBy  String?   @map("rejected_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  lotAsCurrent Lot? @relation("currentBid")
+
+  @@unique([lotId, clientBidId])
+  @@index([lotId, amount(sort: Desc)])
+  @@index([lotId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("bids")
+}
+
+model Deal {
+  id           String     @id @default(uuid()) @db.Uuid
+  lotId        String     @unique @map("lot_id") @db.Uuid
+  lot          Lot        @relation(fields: [lotId], references: [id])
+  winnerUserId String     @map("winner_user_id") @db.Uuid
+  winner       User       @relation("winner", fields: [winnerUserId], references: [id])
+  winningBidId String     @map("winning_bid_id") @db.Uuid
+  amount       BigInt
+  /** Снимок ставки комиссии на момент закрытия торгов */
+  feeRate      Decimal    @map("fee_rate") @db.Decimal(6, 4)
+  feeAmount    BigInt     @map("fee_amount")
+  status       DealStatus @default(pending)
+  managerId    String?    @map("manager_id") @db.Uuid
+  manager      User?      @relation("manager", fields: [managerId], references: [id])
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  closedAt     DateTime?  @map("closed_at") @db.Timestamptz()
+
+  @@map("deals")
+}
+
+model Favorite {
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lotId     String   @map("lot_id") @db.Uuid
+  lot       Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@id([userId, lotId])
+  @@map("favorites")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  payload   Json             @default("{}")
+  readAt    DateTime?        @map("read_at") @db.Timestamptz()
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model SellRequest {
+  id        String            @id @default(uuid()) @db.Uuid
+  userId    String?           @map("user_id") @db.Uuid
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  make      String
+  model     String
+  year      Int
+  mileage   Int
+  phone     String
+  comment   String            @default("")
+  photos    Json              @default("[]")
+  status    SellRequestStatus @default(new)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("sell_requests")
+}
+
+/// Единственная строка id=1 — параметры аукциона
+model Settings {
+  id                   Int     @id @default(1)
+  feeRate              Decimal @default(0.015) @map("fee_rate") @db.Decimal(6, 4)
+  defaultBidStep       BigInt  @default(20000) @map("default_bid_step")
+  antisnipeEnabled     Boolean @default(true) @map("antisnipe_enabled")
+  antisnipeWindowSec   Int     @default(120) @map("antisnipe_window_sec")
+  antisnipeExtensionSec Int    @default(120) @map("antisnipe_extension_sec")
+  managerContacts      Json    @default("{}") @map("manager_contacts")
+  notificationToggles  Json    @default("{}") @map("notification_toggles")
+
+  @@map("settings")
+}
+
+/// Аудит ручных/системных действий над торгами
+model AuctionEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  lotId       String   @map("lot_id") @db.Uuid
+  lot         Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  type        String   // extended | paused | closed_early | bid_rejected | withdrawn | step_changed | opened | closed
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  payload     Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([lotId, createdAt(sort: Desc)])
+  @@map("auction_events")
+}

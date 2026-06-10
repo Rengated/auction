@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Автоаукцион — Дизайн</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="hifi.css" />
+</head>
+<body style="background-color: rgb(69, 116, 216)">
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="hifi-shared.jsx"></script>
+<script type="text/babel" src="hifi-catalog.jsx"></script>
+<script type="text/babel" src="hifi-lot.jsx"></script>
+<script type="text/babel" src="hifi-live.jsx"></script>
+<script type="text/babel" src="hifi-mybids.jsx"></script>
+<script type="text/babel" src="hifi-auth.jsx"></script>
+<script type="text/babel" src="hifi-sell.jsx"></script>
+
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "#c9533c",
+  "theme": "light",
+  "corners": "soft"
+}/*EDITMODE-END*/;
+
+function ScreenProfile({ onSell, onLogout, onOpenPage }) {
+  const menu = [
+    ['won', 'Мои выигранные лоты', 'договоры и статусы сделок'],
+    ['notif', 'Уведомления', 'ставки, перебитие, финал торгов'],
+    ['manager', 'Связь с менеджером', 'сопровождение сделки'],
+    ['personal', 'Личные данные', 'имя, телефон, верификация'],
+  ];
+  return (
+    <div className="screen screen-enter">
+      <StatusBar />
+      <div className="body">
+        <div style={{ padding: '6px 20px 0' }}>
+          <div className="eyebrow" style={{ marginBottom: 7 }}>аккаунт</div>
+          <div className="title-xl">Профиль</div>
+        </div>
+        <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 22px/1 var(--num)', color: 'var(--accent)' }}>А</div>
+          <div>
+            <div style={{ font: '700 18px/1 var(--ui)' }}>Александр</div>
+            <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 13, height: 13 }}>{I.phone}</span> +7 900 000-00-00
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: '20px 20px 0' }}>
+          <button className="btn accent block" onClick={onSell} style={{ padding: '14px' }}>
+            <span style={{ width: 18, height: 18 }}>{I.plus}</span> Выставить авто на торги
+          </button>
+        </div>
+        <div style={{ padding: '16px 20px 18px' }}>
+          <div className="card">
+            {menu.map((m, i) => (
+              <button key={m[0]} onClick={() => onOpenPage(m[0])} style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '15px 18px', borderBottom: i < menu.length - 1 ? '1px solid var(--line-soft)' : 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{m[1]}</div>
+                  <div className="num" style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 4 }}>{m[2]}</div>
+                </div>
+                <span style={{ color: 'var(--text-faint)', transform: 'rotate(180deg)', width: 18, height: 18, flex: 'none' }}>{I.back}</span>
+              </button>
+            ))}
+          </div>
+          <button className="btn block" onClick={onLogout} style={{ marginTop: 14, marginBottom: 96, background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>Выйти из аккаунта</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageHead({ title, onBack }) {
+  return (
+    <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 12, padding: '4px 16px 12px' }}>
+      <button className="iconbtn" onClick={onBack}>{I.back}</button>
+      <div className="title-lg" style={{ fontSize: 19 }}>{title}</div>
+    </div>
+  );
+}
+
+function ScreenProfilePage({ page, onBack }) {
+  if (page === 'personal') {
+    const filled = (() => { try { return localStorage.getItem('cc_contacts') === '1'; } catch (e) { return false; } })();
+    const rows = [
+      ['Имя', filled ? 'Александр Соколов' : '— не указано', filled],
+      ['Телефон', '+7 900 000-00-00', true],
+      ['Email', filled ? 'a.sokolov@mail.ru' : '— не указано', filled],
+      ['Город', filled ? 'Москва' : '— не указано', filled],
+    ];
+    const save = () => { try { localStorage.setItem('cc_contacts', '1'); } catch (e) {} onBack(); };
+    return (
+      <div className="screen screen-enter">
+        <StatusBar />
+        <PageHead title="Личные данные" onBack={onBack} />
+        <div className="body" style={{ padding: '4px 18px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 20px/1 var(--num)', color: 'var(--accent)' }}>А</div>
+            <button className="chip" style={{ cursor: 'pointer' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 13, height: 13 }}>{I.edit}</span> изменить фото</span></button>
+          </div>
+          {!filled && (
+            <div className="card" style={{ padding: '13px 15px', marginBottom: 14, display: 'flex', gap: 11, alignItems: 'flex-start', borderColor: 'color-mix(in srgb, var(--accent) 38%, var(--line))' }}>
+              <span style={{ width: 17, height: 17, color: 'var(--accent)', flex: 'none', marginTop: 1 }}>{I.shield}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>Заполните контактные данные, чтобы участвовать в торгах. Они нужны менеджеру для связи после победы.</span>
+            </div>
+          )}
+          <div className="card" style={{ padding: '2px 16px' }}>
+            {rows.map(([k, v, ok]) => <div key={k} className="spec-row"><span className="k">{k}</span><span className="v num" style={{ color: ok ? 'var(--text)' : 'var(--text-faint)' }}>{v}</span></div>)}
+          </div>
+          <button className="btn accent block" style={{ marginTop: 16 }} onClick={save}>{filled ? 'Сохранить' : 'Заполнить и сохранить'}</button>
+        </div>
+      </div>
+    );
+  }
+  if (page === 'notif') {
+    const items = [
+      ['Вашу ставку перебили', 'BMW X3 xDrive30i · теперь 3 160 000 ₽', '5 мин', 'out'],
+      ['Лот скоро закроется', 'Lexus RX 350 · осталось 2 минуты', '12 мин', 'live'],
+      ['Торги завершены', 'Toyota Camry · резерв не достигнут', '1 ч', 'muted'],
+      ['Старт торгов', 'Audi A6 quattro · сегодня в 18:00', '2 ч', 'soon'],
+      ['Вы выиграли лот', 'Porsche 911 · менеджер свяжется', 'вчера', 'ok'],
+    ];
+    const dot = { out: 'var(--live)', live: 'var(--live)', muted: 'var(--text-faint)', soon: 'var(--accent)', ok: 'var(--ok)' };
+    return (
+      <div className="screen screen-enter">
+        <StatusBar />
+        <PageHead title="Уведомления" onBack={onBack} />
+        <div className="body" style={{ padding: '4px 18px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {items.map((it, i) => (
+            <div key={i} className="card" style={{ padding: '13px 15px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot[it[3]], marginTop: 5, flex: 'none' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{it[0]}</div>
+                <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>{it[1]}</div>
+              </div>
+              <span className="num" style={{ fontSize: 11, color: 'var(--text-faint)', flex: 'none' }}>{it[2]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (page === 'won') {
+    const won = [
+      ['Porsche 911 Carrera', 6250000, 'Договор готов', 'ok'],
+      ['Kia K5 GT-Line', 2150000, 'Сделка закрыта', 'muted'],
+    ];
+    return (
+      <div className="screen screen-enter">
+        <StatusBar />
+        <PageHead title="Выигранные лоты" onBack={onBack} />
+        <div className="body" style={{ padding: '4px 18px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {won.map((w, i) => (
+            <div key={i} className="card" style={{ padding: 12, display: 'flex', gap: 13, alignItems: 'center' }}>
+              <Photo h={62} glyph={w[0][0]} style={{ width: 84, flex: 'none', borderRadius: 9 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>{w[0]}</div>
+                <div className="num" style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 5 }}>{rub(w[1])}</div>
+                <div className="num" style={{ fontSize: 11, marginTop: 6, color: w[3] === 'ok' ? 'var(--ok)' : 'var(--text-faint)', fontWeight: 600 }}>{w[2]}</div>
+              </div>
+              <span style={{ color: 'var(--text-faint)', transform: 'rotate(180deg)', width: 18, height: 18, flex: 'none' }}>{I.back}</span>
+            </div>
+          ))}
+          <div className="card" style={{ padding: '13px 15px', display: 'flex', gap: 11, alignItems: 'center' }}>
+            <span style={{ width: 18, height: 18, color: 'var(--text-dim)', flex: 'none' }}>{I.shield}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>Документы по сделкам хранятся здесь</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // manager
+  return (
+    <div className="screen screen-enter">
+      <StatusBar />
+      <PageHead title="Связь с менеджером" onBack={onBack} />
+      <div className="body" style={{ padding: '4px 18px 24px' }}>
+        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 54, height: 54, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 18px/1 var(--num)', color: 'var(--accent)' }}>М</div>
+          <div>
+            <div style={{ font: '700 16px/1 var(--ui)' }}>Михаил, ваш менеджер</div>
+            <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>на связи 9:00–21:00 МСК</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 14 }}>
+          <a href="tel:+74950000000" className="btn block" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)' }}><span>☎ Позвонить</span><span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>+7 495 000-00-00</span></a>
+          <a href="https://t.me/hermes_trade" className="btn block" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)' }}><span>Telegram</span><span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>@hermes_trade</span></a>
+          <a href="https://wa.me/79162401108" className="btn block" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)' }}><span>WhatsApp</span><span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>+7 916 240-11-08</span></a>
+          <a href="#" className="btn block" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)' }}><span>MAX</span><span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>@hermes_trade</span></a>
+          <a href="mailto:m.gurov@hermes-trade.ru" className="btn block" style={{ textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)' }}><span>✉ Почта</span><span className="num" style={{ color: 'var(--text-dim)', fontSize: 12 }}>m.gurov@hermes-trade.ru</span></a>
+        </div>
+        <div className="card" style={{ marginTop: 16, padding: '14px 16px' }}>
+          <div className="eyebrow" style={{ marginBottom: 9 }}>чем помогает</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {['Оформление сделки после победы', 'Осмотр и проверка автомобиля', 'Доставка в ваш город', 'Вопросы по лотам и ставкам'].map(x => (
+              <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13, color: 'var(--text-dim)' }}>
+                <span style={{ width: 15, height: 15, color: 'var(--ok)', flex: 'none' }}>{I.check}</span>{x}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenLiveLobby({ now, onOpen }) {
+  const live = LOTS.filter(l => STATUS[l.status].group === 'live').sort((a, b) => (a.endsIn - now) - (b.endsIn - now));
+  return (
+    <div className="screen screen-enter">
+      <StatusBar />
+      <div style={{ flex: 'none', padding: '6px 20px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 7 }}>идут прямо сейчас</div>
+          <div className="title-xl">Живые торги</div>
+        </div>
+        <span className="live"><span className="dot"></span>{live.length}</span>
+      </div>
+      <div className="body">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 20px 96px' }}>
+          {live.map(lot => <LotCard key={lot.id} lot={lot} now={now} onOpen={onOpen} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({ tab, setTab }) {
+  const items = [['catalog', 'Лоты', I.catalog], ['bids', 'Ставки', I.bids], ['profile', 'Профиль', I.user]];
+  return (
+    <div className="nav">
+      {items.map(([id, label, icon]) => (
+        <button key={id} className={`tab ${tab === id ? 'on' : ''}`} onClick={() => setTab(id)}>
+          <span className="ic">{icon}</span>
+          <span>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [authed, setAuthed] = React.useState(() => localStorage.getItem('cc_authed') === '1');
+  const [tab, setTab] = React.useState('catalog');
+  const [detail, setDetail] = React.useState(null); // {type:'lot'|'live'|'sell', lot?}
+  const [now, setNow] = React.useState(0);
+  const [filter, setFilter] = React.useState('Все');
+  const [myTab, setMyTab] = React.useState('Активные');
+
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(n => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  React.useEffect(() => {
+    const h = () => setDetail({ type: 'profilepage', page: 'personal' });
+    window.addEventListener('cc-need-contacts', h);
+    return () => window.removeEventListener('cc-need-contacts', h);
+  }, []);
+
+  const login = () => { localStorage.setItem('cc_authed', '1'); setAuthed(true); };
+  const logout = () => { localStorage.removeItem('cc_authed'); setAuthed(false); setTab('catalog'); setDetail(null); };
+
+  const openLot = (lot) => setDetail({ type: 'lot', lot });
+  const openSell = () => setDetail({ type: 'sell' });
+  const openPage = (page) => setDetail({ type: 'profilepage', page });
+  const back = () => setDetail(null);
+
+  const goTab = (id) => { setDetail(null); setTab(id); };
+
+  const radii = t.corners === 'sharp'
+    ? { '--r-lg': '8px', '--r-md': '8px', '--r-sm': '5px' } : {};
+
+  let content, showNav = false, frameKey;
+  if (!authed) {
+    content = <AuthFlow onDone={login} />;
+    frameKey = 'auth';
+  } else if (detail && detail.type === 'lot') {
+    content = <ScreenLot lot={detail.lot} now={now} onBack={back} />;
+    frameKey = 'lot' + detail.lot.id;
+  } else if (detail && detail.type === 'sell') {
+    content = <ScreenSell onBack={back} />;
+    frameKey = 'sell';
+  } else if (detail && detail.type === 'profilepage') {
+    content = <ScreenProfilePage page={detail.page} onBack={back} />;
+    frameKey = 'ppage-' + detail.page;
+  } else if (tab === 'catalog') {
+    content = <ScreenCatalog now={now} onOpen={openLot} filter={filter} setFilter={setFilter} />;
+    showNav = true; frameKey = 'catalog';
+  } else if (tab === 'bids') {
+    content = <ScreenMyBids now={now} onOpen={openLot} myTab={myTab} setMyTab={setMyTab} />;
+    showNav = true; frameKey = 'bids';
+  } else {
+    content = <ScreenProfile onSell={openSell} onLogout={logout} onOpenPage={openPage} />;
+    showNav = true; frameKey = 'profile';
+  }
+
+  return (
+    <div className="stage" data-theme={t.theme} style={{ '--accent': t.accent, ...radii }}>
+      <div className="phone">
+        <React.Fragment key={frameKey}>
+          {content}
+        </React.Fragment>
+        {showNav && (
+          <div style={{ position: 'absolute', left: 10, right: 10, bottom: 10, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, overflow: 'hidden' }}>
+            <BottomNav tab={tab} setTab={goTab} />
+          </div>
+        )}
+      </div>
+
+      <TweaksPanel>
+        <TweakSection label="Оформление" />
+        <TweakRadio label="Тема" value={t.theme}
+                    options={['dark', 'light']}
+                    onChange={(v) => setTweak('theme', v)} />
+        <TweakColor label="Акцент" value={t.accent}
+                    options={['#c9533c', '#c08a2e', '#3f6fc0', '#2f9460', '#7c5ad0']}
+                    onChange={(v) => setTweak('accent', v)} />
+        <TweakRadio label="Углы" value={t.corners}
+                    options={['soft', 'sharp']}
+                    onChange={(v) => setTweak('corners', v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
