@@ -79,10 +79,9 @@ services:
       YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
       AUTH_DEV_FAKE: ${AUTH_DEV_FAKE:-0}
       WEB_ORIGIN: https://${DOMAIN:?задайте DOMAIN в .env}
-      ADMIN_ORIGIN: https://${ADMIN_DOMAIN:-admin.${DOMAIN}}
-      # Сессия делится между клиентом и админкой (OAuth-callback приходит на основной домен).
-      # Если админка на соседнем поддомене (не под DOMAIN) — задайте общий родительский COOKIE_DOMAIN в .env
-      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.${DOMAIN}}
+      ADMIN_ORIGIN: https://admin.${DOMAIN}
+      # Сессия делится между DOMAIN и admin.DOMAIN (OAuth-callback приходит на основной домен)
+      COOKIE_DOMAIN: .${DOMAIN}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
@@ -106,7 +105,6 @@ services:
       - "443:443/udp" # HTTP/3
     environment:
       DOMAIN: ${DOMAIN}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-admin.${DOMAIN}}
       ACME_EMAIL: ${ACME_EMAIL:?задайте ACME_EMAIL в .env}
     volumes:
       - caddydata:/data
