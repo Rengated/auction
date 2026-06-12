@@ -67,10 +67,14 @@ export class AuthService {
 
   private setCookies(res: Response, access: string, refresh: string): void {
     const secure = process.env.NODE_ENV === 'production';
+    // COOKIE_DOMAIN (например, ".auction.example.ru") делит сессию между
+    // основным доменом и admin-поддоменом — нужно для OAuth-callback в проде
+    const domain = process.env.COOKIE_DOMAIN || undefined;
     res.cookie('access_token', access, {
       httpOnly: true,
       sameSite: 'lax',
       secure,
+      domain,
       maxAge: ACCESS_TTL_SEC * 1000,
       path: '/',
     });
@@ -78,6 +82,7 @@ export class AuthService {
       httpOnly: true,
       sameSite: 'lax',
       secure,
+      domain,
       maxAge: REFRESH_TTL_SEC * 1000,
       path: '/',
     });
@@ -102,8 +107,9 @@ export class AuthService {
         data: { revokedAt: new Date() },
       });
     }
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    const domain = process.env.COOKIE_DOMAIN || undefined;
+    res.clearCookie('access_token', { path: '/', domain });
+    res.clearCookie('refresh_token', { path: '/', domain });
   }
 
   verifyAccess(token: string): JwtPayload {

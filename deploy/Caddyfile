@@ -1,0 +1,59 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Клиент покупателя — https://{DOMAIN}
+{$DOMAIN} {
+	encode zstd gzip
+
+	# REST API: /api/* → NestJS (префикс срезается, как в vite-прокси)
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:3000
+	}
+
+	# WebSocket (socket.io)
+	handle /socket.io/* {
+		reverse_proxy api:3000
+	}
+
+	# Медиа из MinIO: /s3/lots/<key> → бакет lots
+	handle_path /s3/* {
+		reverse_proxy minio:9000
+	}
+
+	# SPA: статика + fallback на index.html; service worker без кэша
+	handle {
+		root * /srv/web
+		@sw path /sw.js /registerSW.js /manifest.webmanifest
+		header @sw Cache-Control "no-cache"
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Админка — https://admin.{DOMAIN}
+admin.{$DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:3000
+	}
+
+	handle /socket.io/* {
+		reverse_proxy api:3000
+	}
+
+	handle_path /s3/* {
+		reverse_proxy minio:9000
+	}
+
+	handle {
+		root * /srv/admin
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

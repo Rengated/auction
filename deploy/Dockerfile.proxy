@@ -1,0 +1,26 @@
+# Reverse-proxy + статика клиента и админки.
+# Caddy сам получает и продлевает TLS-сертификаты Let's Encrypt.
+# Собирается из корня монорепо: docker build -f deploy/Dockerfile.proxy .
+FROM node:22-bookworm-slim AS build
+RUN npm i -g pnpm@10
+WORKDIR /app
+
+# shared копируется целиком: его prepare-скрипт собирает пакет прямо при install
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/shared packages/shared
+COPY apps/web/package.json apps/web/
+COPY apps/admin/package.json apps/admin/
+RUN pnpm install --frozen-lockfile --filter @hermes/web... --filter @hermes/admin...
+
+COPY apps/web apps/web
+COPY apps/admin apps/admin
+
+# В проде API живёт на том же домене за путём /api (OAuth-редиректы идут относительно)
+ENV VITE_API_ORIGIN=/api
+RUN pnpm --filter @hermes/web build \
+ && pnpm --filter @hermes/admin build
+
+FROM caddy:2-alpine
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/apps/web/dist /srv/web
+COPY --from=build /app/apps/admin/dist /srv/admin
