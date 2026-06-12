@@ -33,8 +33,8 @@
 	}
 }
 
-# Админка — https://admin.{DOMAIN}
-admin.{$DOMAIN} {
+# Админка — https://{ADMIN_DOMAIN}
+{$ADMIN_DOMAIN} {
 	encode zstd gzip
 
 	handle /api/* {
