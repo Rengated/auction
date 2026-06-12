@@ -8,21 +8,12 @@ export type LotStatus = 'draft' | 'upcoming' | 'live' | 'sold' | 'finished' | 'w
 /** Статус для отображения (как в дизайне): live с endsAt ≤ 300с → ending. */
 export type DisplayStatus = Exclude<LotStatus, 'draft'> | 'ending';
 
-export interface AutotekaReport {
-  attached: boolean;
-  date?: string;
-  owners?: number;
-  accidents?: number;
-  restrictions?: boolean;
-  pledge?: boolean;
-  mileageOk?: boolean;
-  taxi?: boolean;
-  summary?: string;
-}
+export type MediaKind = 'photo' | 'video';
 
 export interface LotPhotoDto {
   id: string;
-  /** URL вариантов: card 360w, md 800w, lg 1600w */
+  kind: MediaKind;
+  /** URL вариантов: card 360w, md 800w, lg 1600w. Для видео все три — один raw-URL файла. */
   card: string;
   md: string;
   lg: string;
@@ -60,7 +51,10 @@ export interface LotDto {
   vin: string | null;
   description: string;
   options: string[];
-  autoteka: AutotekaReport | null;
+  /** PDF-отчёт Автотеки, если загружен администратором */
+  autotekaPdfUrl: string | null;
+  /** Эффективная комиссия: своя у лота либо глобальная из настроек */
+  feeRate: number;
   isFavorite?: boolean;
   /** Моя позиция в торгах (если авторизован) */
   my?: { isLeading: boolean; lastBid: number | null };
@@ -108,8 +102,12 @@ export interface MeDto {
     fullName: string | null;
     phone: string | null;
     email: string | null;
-    city: string | null;
   };
+  /** Активная блокировка (истёкшая → null) */
+  blockedUntil: string | null;
+  blockReason: string | null;
+  /** Слитые с дефолтами персональные настройки уведомлений */
+  notificationPrefs: NotificationPrefs;
 }
 
 export type NotificationType =
@@ -117,8 +115,45 @@ export type NotificationType =
   | 'won'
   | 'lot_starting'
   | 'lot_ending'
+  | 'lot_extended'
+  | 'lot_withdrawn'
   | 'deal_update'
   | 'system';
+
+/** События, настраиваемые пользователем (system доставляется всегда). */
+export const NOTIFICATION_EVENTS = [
+  'outbid',
+  'won',
+  'lot_starting',
+  'lot_ending',
+  'lot_extended',
+  'lot_withdrawn',
+  'deal_update',
+] as const;
+export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+export type NotificationChannel = 'inApp' | 'push';
+export type NotificationPrefs = Record<NotificationEvent, Record<NotificationChannel, boolean>>;
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  outbid: { inApp: true, push: true },
+  won: { inApp: true, push: true },
+  lot_starting: { inApp: true, push: true },
+  lot_ending: { inApp: true, push: true },
+  lot_extended: { inApp: true, push: false },
+  lot_withdrawn: { inApp: true, push: true },
+  deal_update: { inApp: true, push: true },
+};
+
+/** Базовый payload уведомления о лоте; спец-поля по типам:
+ *  outbid: + yourAmount, newAmount; won: + amount, dealId;
+ *  lot_starting: + startsAt, phase 'soon'|'live'; lot_ending: + endsAt;
+ *  lot_extended: + endsAt, reason 'antisnipe'|'manual'; deal_update: + dealId, status. */
+export interface NotifLotPayload {
+  lotId: string;
+  lotTitle: string;
+  [k: string]: unknown;
+}
 
 export interface NotificationDto {
   id: string;
@@ -128,7 +163,11 @@ export interface NotificationDto {
   createdAt: string;
 }
 
-export type DealStatus = 'pending' | 'contract' | 'closed';
+export interface UnreadCountDto {
+  count: number;
+}
+
+export type DealStatus = 'in_progress' | 'completed' | 'cancelled';
 
 export interface DealDto {
   id: string;
@@ -150,20 +189,20 @@ export interface AuctionSettingsDto {
   antisnipeExtensionSec: number;
 }
 
+export interface ManagerContacts {
+  name?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  telegram?: string;
+  whatsapp?: string;
+  max?: string;
+}
+
 /** Публичный срез настроек для клиента */
 export interface PublicConfigDto {
   feeRate: number;
   defaultBidStep: number;
   vapidPublicKey: string | null;
-}
-
-export type SellRequestStatus = 'new' | 'in_review' | 'accepted' | 'rejected';
-
-export interface CreateSellRequest {
-  make: string;
-  model: string;
-  year: number;
-  mileage: number;
-  phone: string;
-  comment?: string;
+  managerContacts: ManagerContacts;
 }

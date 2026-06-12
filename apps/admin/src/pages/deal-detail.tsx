@@ -5,11 +5,7 @@ import { AI, Ic } from '../components/icons';
 import { useDeal, usePatchDeal, type AdminDeal } from '../lib/queries';
 import { DEAL_STATUS } from './deals';
 
-const NEXT_STATUS: Record<AdminDeal['status'], AdminDeal['status']> = {
-  pending: 'contract',
-  contract: 'closed',
-  closed: 'closed',
-};
+const STATUS_ORDER: AdminDeal['status'][] = ['in_progress', 'completed', 'cancelled'];
 
 export function DealDetailPage() {
   const { id } = useParams();
@@ -25,12 +21,6 @@ export function DealDetailPage() {
   if (!deal) return <div className="content fade" />;
 
   const wonAt = new Date(deal.createdAt).toLocaleString('ru-RU');
-  const steps: Array<[string, string, boolean]> = [
-    ['Лот выигран', wonAt, true],
-    ['Связь с победителем', 'менеджер запросил контакты', deal.status !== 'pending'],
-    ['Оформление договора', 'подписание и оплата', deal.status === 'contract' || deal.status === 'closed'],
-    ['Выдача / доставка', 'передача автомобиля', deal.status === 'closed'],
-  ];
   const [statusLabel, statusCls] = DEAL_STATUS[deal.status];
 
   return (
@@ -56,7 +46,7 @@ export function DealDetailPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ font: '700 17px/1 var(--ui)' }}>{deal.winner.name}</div>
                 <div className="num" style={{ fontSize: 12.5, color: 'var(--dim)', marginTop: 7 }}>
-                  {deal.winner.city ?? '—'} · выиграл {wonAt}
+                  выиграл {wonAt}
                 </div>
               </div>
             </div>
@@ -74,32 +64,42 @@ export function DealDetailPage() {
             </div>
           </div>
 
-          {/* deal progress */}
+          {/* deal status */}
           <div className="pcard">
-            <div className="ph"><div><h3>Ход сделки</h3><div className="sub">этапы сопровождения</div></div></div>
-            <div style={{ padding: '18px 20px' }}>
-              {steps.map((s, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14, paddingBottom: i < steps.length - 1 ? 18 : 0 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 'none' }}>
-                    <span style={{ width: 26, height: 26, borderRadius: '50%', background: s[2] ? 'var(--ok)' : 'var(--panel3)', color: s[2] ? '#fff' : 'var(--faint)', display: 'grid', placeItems: 'center', flex: 'none' }}>
-                      <span style={{ width: 14, height: 14 }}>{s[2] ? AI.check : null}</span>
-                    </span>
-                    {i < steps.length - 1 && <span style={{ width: 2, flex: 1, minHeight: 22, background: 'var(--line)', marginTop: 4 }}></span>}
-                  </div>
-                  <div>
-                    <div style={{ font: '600 14px/1.3 var(--ui)', color: s[2] ? 'var(--ink)' : 'var(--dim)' }}>{s[0]}</div>
-                    <div className="num" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 5 }}>{s[1]}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {deal.status !== 'closed' && (
-              <div style={{ padding: '0 20px 20px', display: 'flex', gap: 10 }}>
-                <button className="btn acc" disabled={patch.isPending} onClick={() => patch.mutate({ status: NEXT_STATUS[deal.status] })}>
-                  Перевести на след. этап
-                </button>
+            <div className="ph"><div><h3>Статус сделки</h3><div className="sub">сопровождение менеджером</div></div></div>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {STATUS_ORDER.map((s) => {
+                  const active = deal.status === s;
+                  const color = s === 'in_progress' ? 'var(--gold)' : s === 'completed' ? 'var(--ok)' : 'var(--dim)';
+                  const soft = s === 'in_progress' ? 'var(--gold-soft)' : s === 'completed' ? 'var(--ok-soft)' : 'var(--panel3)';
+                  return (
+                    <button
+                      key={s}
+                      className="btn sm"
+                      disabled={patch.isPending}
+                      onClick={() => !active && patch.mutate({ status: s })}
+                      style={{
+                        flex: 1,
+                        justifyContent: 'center',
+                        ...(active
+                          ? { background: soft, color }
+                          : { background: 'transparent', border: '1px solid var(--line2)' }),
+                      }}
+                    >
+                      {DEAL_STATUS[s][0]}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+              <div className="hint" style={{ margin: 0 }}>
+                {deal.status === 'completed' && deal.closedAt
+                  ? `Сделка завершена ${new Date(deal.closedAt).toLocaleString('ru-RU')}.`
+                  : deal.status === 'cancelled'
+                    ? 'Сделка отменена — покупатель уведомлён.'
+                    : 'Сделка в работе: связь с победителем, договор, оплата, выдача.'}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -108,7 +108,10 @@ export function DealDetailPage() {
           <div className="pcard">
             {deal.photo && <img src={deal.photo} alt="" style={{ width: '100%', height: 170, objectFit: 'cover', display: 'block' }} />}
             <div style={{ padding: 20 }}>
-              <div className="l" style={{ font: '600 10px/1 var(--num)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--faint)' }}>Расчёт сделки</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="l" style={{ font: '600 10px/1 var(--num)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--faint)' }}>Расчёт сделки</div>
+                <button className="btn sm" onClick={() => navigate(`/lots/${deal.lotId}/edit`)}>Лот</button>
+              </div>
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 11 }}>
                 <div className="num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--dim)' }}>
                   <span>цена победы</span><span>{fmt(deal.amount)} ₽</span>

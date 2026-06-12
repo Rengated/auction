@@ -3,9 +3,9 @@ import { fmt } from '@hermes/shared';
 import { useDeals, type AdminDeal } from '../lib/queries';
 
 export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
-  pending: ['Ждёт менеджера', 'up'],
-  contract: ['Оформление договора', 'live'],
-  closed: ['Сделка закрыта', 'sold'],
+  in_progress: ['В работе', 'up'],
+  completed: ['Завершена', 'sold'],
+  cancelled: ['Отменена', 'fin'],
 };
 
 export function DealsPage() {

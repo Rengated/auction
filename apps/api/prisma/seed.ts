@@ -1,6 +1,6 @@
 /* Сиды: демо-данные из дизайн-прототипа (design-reference/hifi-shared.jsx),
    относительные startsIn/endsIn пересчитаны в абсолютные даты от момента сида. */
-import { Prisma, PrismaClient, LotStatus, Role } from '@prisma/client';
+import { PrismaClient, LotStatus, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -39,7 +39,6 @@ interface SeedLot {
   desc: string;
   options: string[];
   vin: string | null;
-  autoteka: Prisma.InputJsonObject | null;
 }
 
 const LOTS: SeedLot[] = [
@@ -53,7 +52,6 @@ const LOTS: SeedLot[] = [
     desc: 'Один владелец, обслуживание у официального дилера. Полный пакет документов, сервисная книжка. Комплектация AMG-Line: панорама, Burmester, адаптивная подвеска. Без участия в ДТП по данным проверки.',
     options: ['Панорама', 'Кожа Nappa', 'Burmester', 'Адаптивный круиз', 'Камеры 360°', 'Подогрев и вентиляция'],
     vin: 'W1K2130421A123456',
-    autoteka: { attached: true, date: '03.06.2026', owners: 1, accidents: 0, restrictions: false, pledge: false, mileageOk: true, taxi: false, summary: 'Чистая история: один владелец, ДТП не зафиксированы, ограничений и залога нет.' },
   },
   {
     make: 'BMW', family: 'X3', model: 'X3 xDrive30i', year: 2021,
@@ -65,7 +63,6 @@ const LOTS: SeedLot[] = [
     desc: 'Активный круиз, проекция, Harman/Kardon. Зимний пакет. Резина два комплекта. Лёгкие косметические сколы на переднем бампере — отражено в отчёте.',
     options: ['Проекция', 'Harman/Kardon', 'Зимний пакет', 'Электропривод двери', 'Подогрев руля'],
     vin: 'X4XTS99480L123457',
-    autoteka: { attached: true, date: '04.06.2026', owners: 2, accidents: 1, restrictions: false, pledge: false, mileageOk: true, taxi: false, summary: 'Одно ДТП (незначительное, передний бампер), пробег подтверждён, ограничений нет.' },
   },
   {
     make: 'Audi', family: 'A6', model: 'A6 45 TFSI quattro', year: 2021,
@@ -77,7 +74,6 @@ const LOTS: SeedLot[] = [
     desc: 'Виртуальная панель, матричные фары, кожа Valcona. Один владелец по ПТС. Все ТО пройдены вовремя.',
     options: ['Matrix LED', 'Virtual Cockpit', 'Кожа Valcona', 'Bang & Olufsen'],
     vin: 'WAUZZZF25MN123458',
-    autoteka: { attached: false },
   },
   {
     // Лот для проверки антиснайпинга — закрывается через ~4 минуты после сида
@@ -90,7 +86,6 @@ const LOTS: SeedLot[] = [
     desc: 'Mark Levinson, вентиляция сидений, head-up. Максимальная комплектация Executive. Идеальное состояние салона.',
     options: ['Mark Levinson', 'Head-up', 'Вентиляция сидений', 'Люк'],
     vin: 'JTJBZMCA902123459',
-    autoteka: { attached: true, date: '01.06.2026', owners: 2, accidents: 0, restrictions: false, pledge: false, mileageOk: true, taxi: false, summary: 'Без ДТП, два владельца, пробег и документы в порядке.' },
   },
   {
     make: 'Porsche', family: '911', model: '911 Carrera', year: 2019,
@@ -102,7 +97,6 @@ const LOTS: SeedLot[] = [
     desc: 'Sport Chrono, спортивный выхлоп, керамика. Полная история обслуживания Porsche. Продан выше резерва.',
     options: ['Sport Chrono', 'Керамика', 'Спорт-выхлоп', 'Ковши'],
     vin: 'WP0ZZZ99ZKS123460',
-    autoteka: { attached: true, date: '30.05.2026', owners: 1, accidents: 0, restrictions: false, pledge: false, mileageOk: true, taxi: false, summary: 'Идеальная история, один владелец, полное сервисное сопровождение Porsche.' },
   },
   {
     make: 'Toyota', family: 'Camry', model: 'Camry 2.5', year: 2021,
@@ -114,7 +108,6 @@ const LOTS: SeedLot[] = [
     desc: 'Один владелец, такси не работала. Резерв не достигнут — лот можно перевыставить.',
     options: ['Кожа', 'Камера', 'Климат'],
     vin: 'XW7BF4FK60S123461',
-    autoteka: { attached: true, date: '01.06.2026', owners: 3, accidents: 2, restrictions: true, pledge: false, mileageOk: false, taxi: true, summary: 'Три владельца, два ДТП, есть ограничение ГИБДД, расхождение по пробегу. Использовалась в такси.' },
   },
 ];
 
@@ -126,7 +119,6 @@ async function main() {
     prisma.notification.deleteMany(),
     prisma.favorite.deleteMany(),
     prisma.pushSubscription.deleteMany(),
-    prisma.sellRequest.deleteMany(),
     prisma.lot.updateMany({ data: { currentBidId: null } }),
     prisma.bid.deleteMany(),
     prisma.lotPhoto.deleteMany(),
@@ -153,7 +145,7 @@ async function main() {
         whatsapp: '+7 905 000-11-22',
         email: 'manager@hermes-trade.ru',
       },
-      notificationToggles: { outbid: true, won: true, lotEnding: true, lotStarting: true },
+      notificationToggles: { outbid: true, won: true, lot_starting: true, lot_ending: true, lot_extended: true, lot_withdrawn: true, deal_update: true },
     },
   });
 
@@ -167,7 +159,6 @@ async function main() {
         fullName: `Тестовый Покупатель ${i}`,
         phone: `+7 900 000-00-${String(i).padStart(2, '0')}`,
         email: `buyer${i}@example.com`,
-        city: 'Москва',
         contactsFilledAt: new Date(),
         ...data,
       },
@@ -210,7 +201,6 @@ async function main() {
         mileage: l.mileage, engine: l.engine, power: l.power, fuel: l.fuel,
         transmission: l.transmission, drive: l.drive, body: l.body, color: l.color,
         vin: l.vin, description: l.desc, options: l.options,
-        autoteka: l.autoteka ?? undefined,
       },
     });
 
@@ -253,7 +243,7 @@ async function main() {
             lotId: lot.id, winnerUserId: topBid.userId, winningBidId: topBid.id,
             amount: topBid.amount, feeRate: 0.015,
             feeAmount: BigInt(Math.round(Number(topBid.amount) * 0.015)),
-            status: 'contract', managerId: manager.id,
+            status: 'in_progress', managerId: manager.id,
           },
         });
       }
@@ -265,13 +255,6 @@ async function main() {
   for (const fl of favLots) {
     await prisma.favorite.create({ data: { userId: buyers[0].id, lotId: fl.id } });
   }
-
-  await prisma.sellRequest.create({
-    data: {
-      userId: buyers[1].id, make: 'Volkswagen', model: 'Tiguan', year: 2019,
-      mileage: 95_000, phone: buyers[1].phone!, comment: 'Хочу продать быстро, документы в порядке.',
-    },
-  });
 
   console.log(`Готово. Пользователи: admin=dev-admin, manager=dev-manager, buyers=dev-1..8, dev-nocontacts`);
 }

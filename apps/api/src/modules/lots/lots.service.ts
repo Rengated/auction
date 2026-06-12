@@ -42,14 +42,14 @@ export class LotsService {
           (await this.prisma.favorite.findMany({ where: { userId }, select: { lotId: true } })).map((f) => f.lotId),
         )
       : new Set<string>();
-    const step = await this.settings.defaultBidStep();
-    return lots.map((l) => lotToDto(l, step, { isFavorite: favs.has(l.id) }));
+    const defaults = await this.settings.lotDefaults();
+    return lots.map((l) => lotToDto(l, defaults, { isFavorite: favs.has(l.id) }));
   }
 
   async byId(id: string, userId: string | null): Promise<LotDto> {
     const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
     if (!lot || (!lot.published && !userId)) throw new NotFoundException();
-    const step = await this.settings.defaultBidStep();
+    const defaults = await this.settings.lotDefaults();
 
     let extra: { isFavorite?: boolean; my?: { isLeading: boolean; lastBid: number | null } } = {};
     if (userId) {
@@ -68,7 +68,7 @@ export class LotsService {
         my: { isLeading: current?.userId === userId, lastBid: myLast ? Number(myLast.amount) : null },
       };
     }
-    return lotToDto(lot, step, extra);
+    return lotToDto(lot, defaults, extra);
   }
 
   /** Публичная лента ставок — имена маскированы, свои подсвечены. */

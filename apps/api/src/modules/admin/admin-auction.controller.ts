@@ -44,6 +44,17 @@ export class AdminAuctionController {
     return { ok: true };
   }
 
+  /** Отклонение конкретной ставки из ленты (не обязательно последней). */
+  @Post('bids/:bidId/reject')
+  async rejectBid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('bidId', ParseUUIDPipe) bidId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    await this.lifecycle.rejectBid(id, bidId, user!.id);
+    return { ok: true };
+  }
+
   /** Немедленный запуск upcoming-лота («Запустить сейчас»). */
   @Post('start-now')
   async startNow(@Param('id', ParseUUIDPipe) id: string) {
@@ -73,7 +84,7 @@ export class AdminAuctionController {
     });
     const users = await this.prisma.user.findMany({
       where: { id: { in: grouped.map((g) => g.userId) } },
-      select: { id: true, displayName: true, fullName: true, phone: true, email: true, city: true },
+      select: { id: true, displayName: true, fullName: true, phone: true, email: true },
     });
     const leader = lot.currentBidId
       ? (await this.prisma.bid.findUnique({ where: { id: lot.currentBidId } }))?.userId
@@ -85,7 +96,6 @@ export class AdminAuctionController {
         name: byId.get(g.userId)?.fullName || byId.get(g.userId)?.displayName || '—',
         phone: byId.get(g.userId)?.phone ?? null,
         email: byId.get(g.userId)?.email ?? null,
-        city: byId.get(g.userId)?.city ?? null,
         maxBid: Number(g._max.amount),
         bids: g._count,
         isLeader: g.userId === leader,

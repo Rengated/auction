@@ -1,6 +1,7 @@
 /* Вход через Яндекс ID: мобильный welcome-экран (hifi-auth.jsx) и веб-сплит (hifi-web-auth.jsx). */
 import { Navigate } from 'react-router-dom';
-import { useMe } from '../lib/queries';
+import type { MeDto } from '@hermes/shared';
+import { logout, useMe } from '../lib/queries';
 import { API_ORIGIN } from '../lib/api';
 import { useIsMobile } from '../lib/layout';
 import { HermesLogo, YandexGlyph, YA_RED } from '../components/brand';
@@ -92,6 +93,48 @@ function WebAuth() {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** «дд.мм.гггг чч:мм» для срока блокировки. */
+const blockedUntilLabel = (iso: string): string => {
+  const d = new Date(iso);
+  if (d.getFullYear() >= 9999) return 'бессрочно';
+  const p = (x: number) => String(x).padStart(2, '0');
+  return `до ${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+/** Полноэкранная заглушка для заблокированного пользователя (вместо приложения). */
+export function BlockedScreen({ me }: { me: MeDto }) {
+  return (
+    <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', background: 'var(--bg)', padding: 24 }}>
+      <div className="card" style={{ maxWidth: 420, width: '100%', padding: '34px 30px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+          <HermesLogo markSize={34} fontSize={18} color="var(--text)" accent="#9aa2ac" />
+        </div>
+        <h1 style={{ font: '800 24px/1.15 var(--ui)', letterSpacing: '-0.02em', margin: 0 }}>Вы заблокированы</h1>
+        <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.55, margin: '14px 0 0' }}>
+          Доступ к Hermes Trade ограничен
+        </p>
+        {me.blockReason && (
+          <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.5, margin: '10px 0 0' }}>
+            Причина: {me.blockReason}
+          </p>
+        )}
+        {me.blockedUntil && (
+          <div className="num" style={{ fontSize: 13, color: 'var(--text-faint)', marginTop: 12 }}>
+            {blockedUntilLabel(me.blockedUntil)}
+          </div>
+        )}
+        <button
+          className="btn block"
+          style={{ marginTop: 24, background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}
+          onClick={() => void logout()}
+        >
+          Выйти
+        </button>
       </div>
     </div>
   );

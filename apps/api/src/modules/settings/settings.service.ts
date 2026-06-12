@@ -18,6 +18,12 @@ export class SettingsService {
     return Number((await this.get()).defaultBidStep);
   }
 
+  /** Глобальные дефолты для полей, переопределяемых на лоте (одним запросом). */
+  async lotDefaults(): Promise<{ bidStep: number; feeRate: number }> {
+    const s = await this.get();
+    return { bidStep: Number(s.defaultBidStep), feeRate: Number(s.feeRate) };
+  }
+
   async toDto(): Promise<AuctionSettingsDto> {
     const s = await this.get();
     return {
@@ -35,6 +41,7 @@ export class SettingsService {
       feeRate: Number(s.feeRate),
       defaultBidStep: Number(s.defaultBidStep),
       vapidPublicKey: process.env.VAPID_PUBLIC_KEY || null,
+      managerContacts: (s.managerContacts ?? {}) as PublicConfigDto['managerContacts'],
     };
   }
 

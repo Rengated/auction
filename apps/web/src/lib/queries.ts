@@ -4,8 +4,10 @@ import type {
   LotDto,
   MeDto,
   NotificationDto,
+  NotificationEvent,
   PlaceBidResponse,
   PublicConfigDto,
+  UnreadCountDto,
 } from '@hermes/shared';
 import { get, patch, post, put, del, ApiError } from './api';
 import { useTimeStore } from './time';
@@ -76,6 +78,16 @@ export const useNotifications = (enabled: boolean) =>
     enabled,
   });
 
+/** Счётчик непрочитанных уведомлений — бейджи в оболочках. */
+export function useUnreadCount() {
+  const { data: me } = useMe();
+  return useQuery<UnreadCountDto>({
+    queryKey: ['notifications-unread'],
+    queryFn: () => get('/me/notifications/unread-count'),
+    enabled: Boolean(me),
+  });
+}
+
 export function usePlaceBid(lotId: string) {
   const qc = useQueryClient();
   return useMutation<PlaceBidResponse, ApiError, { amount: number; clientBidId: string }>({
@@ -115,30 +127,73 @@ export function useToggleFavorite() {
 export function useSaveContacts() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { fullName: string; phone: string; email?: string; city?: string }) =>
+    mutationFn: (data: { fullName: string; phone: string; email?: string }) =>
       patch('/me/contacts', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
 
+/** Пометить все уведомления прочитанными. */
 export function useMarkNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => post('/me/notifications/read'),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => {
+      const now = new Date().toISOString();
+      qc.setQueryData<NotificationDto[]>(['notifications'], (old) =>
+        old?.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+      );
+      qc.setQueryData<UnreadCountDto>(['notifications-unread'], { count: 0 });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
   });
 }
 
-export function useCreateSellRequest() {
-  return useMutation<{ id: string }, ApiError, {
-    make: string;
-    model: string;
-    year: number;
-    mileage: number;
-    phone: string;
-    comment?: string;
-  }>({
-    mutationFn: (data) => post('/sell-requests', data),
+/** Пометить одно уведомление прочитанным (оптимистично: readAt + декремент счётчика). */
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => post(`/me/notifications/${id}/read`),
+    onMutate: (id) => {
+      const items = qc.getQueryData<NotificationDto[]>(['notifications']);
+      const item = items?.find((n) => n.id === id);
+      if (item?.readAt) return; // уже прочитано — счётчик не трогаем
+      qc.setQueryData<NotificationDto[]>(['notifications'], (old) =>
+        old?.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)),
+      );
+      qc.setQueryData<UnreadCountDto>(['notifications-unread'], (old) =>
+        old ? { count: Math.max(0, old.count - 1) } : old,
+      );
+    },
+    onError: () => {
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+      qc.invalidateQueries({ queryKey: ['notifications-unread'] });
+    },
+  });
+}
+
+/** Сохранение настроек уведомлений — разреженный патч {event: {inApp?, push?}}. */
+export function useSaveNotificationPrefs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<Record<NotificationEvent, { inApp?: boolean; push?: boolean }>>) =>
+      patch('/me/notification-prefs', data),
+    onMutate: (data) => {
+      qc.setQueryData<MeDto | null>(['me'], (old) =>
+        old
+          ? {
+              ...old,
+              notificationPrefs: Object.fromEntries(
+                Object.entries(old.notificationPrefs).map(([ev, p]) => [
+                  ev,
+                  { ...p, ...data[ev as NotificationEvent] },
+                ]),
+              ) as MeDto['notificationPrefs'],
+            }
+          : old,
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });
 }
 

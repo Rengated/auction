@@ -1,5 +1,5 @@
 import type { Lot, LotPhoto } from '@prisma/client';
-import type { AutotekaReport, LotDto, LotPhotoDto, LotTickDto } from '@hermes/shared';
+import type { LotDto, LotPhotoDto, LotTickDto } from '@hermes/shared';
 
 const S3_PUBLIC = process.env.S3_PUBLIC_URL ?? 'http://localhost:9000/lots';
 
@@ -10,11 +10,17 @@ export function photoUrl(p: LotPhoto, size: 'card' | 'md' | 'lg'): string {
     return p.externalUrl.replace(/w=\d+/, `w=${w}`);
   }
   if (!p.objectKey) return '';
+  // Видео хранится одним файлом как есть (ключ уже с расширением)
+  if (p.kind === 'video') return `${S3_PUBLIC}/${p.objectKey}`;
   return `${S3_PUBLIC}/${p.objectKey}_${size}.webp`;
 }
 
 export function photoToDto(p: LotPhoto): LotPhotoDto {
-  return { id: p.id, card: photoUrl(p, 'card'), md: photoUrl(p, 'md'), lg: photoUrl(p, 'lg'), sort: p.sort };
+  return { id: p.id, kind: p.kind, card: photoUrl(p, 'card'), md: photoUrl(p, 'md'), lg: photoUrl(p, 'lg'), sort: p.sort };
+}
+
+export function autotekaPdfUrl(lot: Pick<Lot, 'autotekaPdfKey'>): string | null {
+  return lot.autotekaPdfKey ? `${S3_PUBLIC}/${lot.autotekaPdfKey}` : null;
 }
 
 export function lotToTick(lot: Lot): LotTickDto {
@@ -29,9 +35,15 @@ export function lotToTick(lot: Lot): LotTickDto {
   };
 }
 
+/** Глобальные значения по умолчанию для полей, переопределяемых на лоте. */
+export interface LotDefaults {
+  bidStep: number;
+  feeRate: number;
+}
+
 export function lotToDto(
   lot: Lot & { photos: LotPhoto[] },
-  defaultBidStep: number,
+  defaults: LotDefaults,
   extra?: { isFavorite?: boolean; my?: { isLeading: boolean; lastBid: number | null } },
 ): LotDto {
   return {
@@ -43,7 +55,7 @@ export function lotToDto(
     status: lot.status,
     currentPrice: Number(lot.currentPrice),
     startPrice: Number(lot.startPrice),
-    bidStep: lot.bidStep != null ? Number(lot.bidStep) : defaultBidStep,
+    bidStep: lot.bidStep != null ? Number(lot.bidStep) : defaults.bidStep,
     reserveMet: lot.reserveMet,
     reservePrice: Number(lot.reservePrice),
     startsAt: lot.startsAt.toISOString(),
@@ -62,7 +74,8 @@ export function lotToDto(
     vin: lot.vin,
     description: lot.description,
     options: (lot.options as string[]) ?? [],
-    autoteka: (lot.autoteka as AutotekaReport | null) ?? null,
+    autotekaPdfUrl: autotekaPdfUrl(lot),
+    feeRate: lot.feeRate != null ? Number(lot.feeRate) : defaults.feeRate,
     isFavorite: extra?.isFavorite,
     my: extra?.my,
   };

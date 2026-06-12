@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { NOTIFICATION_EVENTS, type NotificationPrefs } from '@hermes/shared';
+import { Prisma } from '@prisma/client';
 import { CurrentUser, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -16,10 +18,6 @@ class ContactsDto {
   @IsOptional()
   @IsEmail()
   email?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
 }
 
 @Controller('me')
@@ -37,7 +35,6 @@ export class UsersController {
         fullName: dto.fullName,
         phone: dto.phone,
         email: dto.email ?? undefined,
-        city: dto.city ?? undefined,
         contactsFilledAt: new Date(),
       },
     });
@@ -49,9 +46,52 @@ export class UsersController {
     return this.notifications.listFor(user!.id);
   }
 
+  @Get('notifications/unread-count')
+  async unreadCount(@CurrentUser() user: AuthUser) {
+    return { count: await this.notifications.unreadCount(user!.id) };
+  }
+
   @Post('notifications/read')
-  async read(@CurrentUser() user: AuthUser) {
+  async readAll(@CurrentUser() user: AuthUser) {
     await this.notifications.markAllRead(user!.id);
+    return { ok: true };
+  }
+
+  @Post('notifications/:id/read')
+  async readOne(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    await this.notifications.markRead(user!.id, id);
+    return { ok: true };
+  }
+
+  /** Разреженный патч персональных настроек уведомлений: { event: { inApp?, push? } }. */
+  @Patch('notification-prefs')
+  async patchPrefs(@CurrentUser() user: AuthUser, @Body() body: Partial<NotificationPrefs>) {
+    const patch: Record<string, { inApp?: boolean; push?: boolean }> = {};
+    for (const [event, channels] of Object.entries(body ?? {})) {
+      if (!(NOTIFICATION_EVENTS as readonly string[]).includes(event) || typeof channels !== 'object' || !channels) {
+        throw new BadRequestException(`Неизвестное событие: ${event}`);
+      }
+      patch[event] = {};
+      for (const ch of ['inApp', 'push'] as const) {
+        const v = (channels as Record<string, unknown>)[ch];
+        if (v !== undefined) {
+          if (typeof v !== 'boolean') throw new BadRequestException('Значения каналов — булевы');
+          patch[event][ch] = v;
+        }
+      }
+    }
+    const u = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user!.id },
+      select: { notificationPrefs: true },
+    });
+    const stored = (u.notificationPrefs ?? {}) as Record<string, { inApp?: boolean; push?: boolean }>;
+    for (const [event, channels] of Object.entries(patch)) {
+      stored[event] = { ...stored[event], ...channels };
+    }
+    await this.prisma.user.update({
+      where: { id: user!.id },
+      data: { notificationPrefs: stored as Prisma.InputJsonObject },
+    });
     return { ok: true };
   }
 }

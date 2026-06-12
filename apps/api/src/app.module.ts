@@ -12,7 +12,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { PushModule } from './modules/push/push.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SettingsModule } from './modules/settings/settings.module';
-import { SellRequestsModule } from './modules/sell-requests/sell-requests.module';
+import { TelegramModule } from './modules/telegram/telegram.module';
 import { UsersModule } from './modules/users/users.module';
 
 function redisConnection() {
@@ -31,9 +31,9 @@ function redisConnection() {
     AuthModule,
     SettingsModule,
     NotificationsModule,
+    TelegramModule,
     LotsModule,
     AuctionEngineModule,
-    SellRequestsModule,
     UsersModule,
     AdminModule,
   ],

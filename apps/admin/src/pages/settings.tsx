@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fmt } from '@hermes/shared';
+import { fmt, NOTIFICATION_EVENTS, type NotificationEvent } from '@hermes/shared';
 import { useSaveSettings, useSettings, type AdminSettings } from '../lib/queries';
 
 function Stepper({ val, set, delta, suf, fmtv }: { val: number; set: (n: number) => void; delta: number; suf: string; fmtv?: (n: number) => string }) {
@@ -23,11 +23,15 @@ const CONTACT_FIELDS: Array<[string, string, string, boolean]> = [
   ['max', 'MAX', '@username или телефон', false],
 ];
 
-const NOTIF_ROWS: Array<[string, string]> = [
-  ['outbid', '«Вашу ставку перебили»'],
-  ['lotEnding', '«Лот скоро закроется»'],
-  ['lotStarting', '«Старт торгов по избранному»'],
-];
+const NOTIF_LABELS: Record<NotificationEvent, string> = {
+  outbid: 'Перебили ставку',
+  won: 'Победа в торгах',
+  lot_starting: 'Старт торгов',
+  lot_ending: 'Скоро финал',
+  lot_extended: 'Продление торгов',
+  lot_withdrawn: 'Лот снят',
+  deal_update: 'Статус сделки',
+};
 
 export function SettingsPage() {
   const { data } = useSettings();
@@ -160,18 +164,47 @@ export function SettingsPage() {
         </div>
 
         <div className="pcard">
-          <div className="ph"><div><h3>Уведомления покупателям</h3><div className="sub">push и события</div></div></div>
-          {NOTIF_ROWS.map(([k, label]) => (
+          <div className="ph"><div><h3>Уведомления покупателям</h3><div className="sub">выключенный тип не доставляется никому</div></div></div>
+          {NOTIFICATION_EVENTS.map((k) => (
             <div className="set-row" key={k}>
-              <div className="info"><div className="t">{label}</div></div>
+              <div className="info"><div className="t">{NOTIF_LABELS[k]}</div></div>
               <div className="ctl">
                 <div
-                  className={`tg ${form.notificationToggles[k] ? 'on' : ''}`}
-                  onClick={() => up({ notificationToggles: { ...form.notificationToggles, [k]: !form.notificationToggles[k] } })}
+                  className={`tg ${form.notificationToggles[k] !== false ? 'on' : ''}`}
+                  onClick={() => up({ notificationToggles: { ...form.notificationToggles, [k]: form.notificationToggles[k] === false } })}
                 ></div>
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="pcard">
+          <div className="ph"><div><h3>Telegram-канал</h3><div className="sub">бот публикует события лотов в канал</div></div></div>
+          <div style={{ padding: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 18px' }}>
+              <div>
+                <label className="fld-l">Токен бота</label>
+                <input
+                  className="in num"
+                  type="password"
+                  autoComplete="off"
+                  value={form.telegramBotToken}
+                  onChange={(e) => up({ telegramBotToken: e.target.value })}
+                  placeholder="123456:ABC-DEF…"
+                />
+              </div>
+              <div>
+                <label className="fld-l">ID канала</label>
+                <input
+                  className="in num"
+                  value={form.telegramChannelId}
+                  onChange={(e) => up({ telegramChannelId: e.target.value })}
+                  placeholder="@hermes_trade или -100…"
+                />
+              </div>
+            </div>
+            <div className="hint">бот публикует события лотов в канал; оставьте пустым, чтобы выключить</div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

@@ -4,9 +4,12 @@ import { fmt } from '@hermes/shared';
 import {
   useAdminLot,
   useCreateLot,
+  useDeleteAutoteka,
   useDeletePhoto,
   useRelistLot,
+  useSettings,
   useUpdateLot,
+  useUploadAutoteka,
   useUploadPhotos,
   type LotFormPayload,
 } from '../lib/queries';
@@ -29,6 +32,7 @@ interface FormState {
   startPrice: string;
   reservePrice: string;
   bidStep: string;
+  feeRate: string;
   startsAt: string;
   endsAt: string;
 }
@@ -36,8 +40,14 @@ interface FormState {
 const EMPTY: FormState = {
   make: '', model: '', year: '', mileage: '', vin: '', body: '', engine: '', power: '',
   fuel: '', transmission: '', drive: '', color: '', description: '',
-  startPrice: '', reservePrice: '', bidStep: '', startsAt: '', endsAt: '',
+  startPrice: '', reservePrice: '', bidStep: '', feeRate: '', startsAt: '', endsAt: '',
 };
+
+const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+
+/** Доля 0.015 → строка процента «1.5» без хвостов плавающей точки. */
+const ratePct = (rate: number): string => String(Math.round(rate * 10000) / 100);
 
 /** «58 000» → 58000; пустая/нечисловая строка → NaN. */
 const num = (s: string): number => parseInt(s.replace(/[^\d]/g, ''), 10);
@@ -53,14 +63,19 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [published, setPublished] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
 
+  const { data: settings } = useSettings();
   const createM = useCreateLot();
   const updateM = useUpdateLot(id ?? '');
   const relistM = useRelistLot(id ?? '');
   const upload = useUploadPhotos(id ?? '');
   const delPhoto = useDeletePhoto(id ?? '');
+  const uploadPdf = useUploadAutoteka(id ?? '');
+  const deletePdf = useDeleteAutoteka(id ?? '');
   const mutation = id ? (relist ? relistM : updateM) : createM;
 
   useEffect(() => {
@@ -82,6 +97,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       startPrice: fmt(lot.startPrice),
       reservePrice: fmt(lot.reservePrice),
       bidStep: lot.lotBidStep != null ? fmt(lot.lotBidStep) : '',
+      feeRate: lot.lotFeeRate != null ? ratePct(lot.lotFeeRate) : '',
       startsAt: relist ? '' : isoToLocal(lot.startsAt),
       endsAt: relist ? '' : isoToLocal(lot.endsAt),
     });
@@ -110,6 +126,9 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       errs.push('Окончание торгов должно быть позже старта');
     if (startPrice && reservePrice && reservePrice < startPrice)
       errs.push('Резерв не может быть ниже стартовой цены');
+    const feePct = form.feeRate.trim() ? parseFloat(form.feeRate.replace(',', '.')) : null;
+    if (feePct != null && (Number.isNaN(feePct) || feePct < 0 || feePct > 100))
+      errs.push('Комиссия за выкуп — число от 0 до 100%');
     setErrors(errs);
     if (errs.length) return;
 
@@ -130,6 +149,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       startPrice,
       reservePrice,
       bidStep: form.bidStep.trim() ? num(form.bidStep) : null,
+      feeRate: feePct != null ? feePct / 100 : null,
       startsAt: new Date(form.startsAt).toISOString(),
       endsAt: new Date(form.endsAt).toISOString(),
       published: pub,
@@ -138,9 +158,27 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
   };
 
   const onFiles = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files?.length && id) upload.mutate(Array.from(files));
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
+    if (!files.length || !id) return;
+    const rejected: string[] = [];
+    const ok = files.filter((f) => {
+      const isVideo = f.type.startsWith('video/');
+      const limit = isVideo ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
+      if (f.size > limit) {
+        rejected.push(`${f.name} — ${isVideo ? 'видео не больше 200 МБ' : 'фото не больше 15 МБ'}`);
+        return false;
+      }
+      return true;
+    });
+    setMediaErrors(rejected);
+    if (ok.length) upload.mutate(ok);
+  };
+
+  const onPdf = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file && id) uploadPdf.mutate(file);
   };
 
   const crumb = relist ? 'Перевыставление' : editing ? 'Редактирование' : 'Новый лот';
@@ -201,26 +239,42 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
         {/* левая колонка: основные поля */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="pcard">
-            <div className="ph"><h3>Фотографии</h3><div className="sub">до 25 фото · экстерьер, салон, документы</div></div>
+            <div className="ph"><h3>Фотографии</h3><div className="sub">до 50 фото и видео · экстерьер, салон, документы</div></div>
             <div style={{ padding: 20 }}>
               {id ? (
                 <>
+                  {mediaErrors.length > 0 && (
+                    <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {mediaErrors.map((m, i) => (
+                        <div key={i} style={{ font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>{m}</div>
+                      ))}
+                    </div>
+                  )}
                   <div className="photo-row" style={{ marginTop: 0 }}>
                     {(lot?.photos ?? []).map((p) => (
                       <div key={p.id} className="thumb">
-                        {p.card ? <img src={p.card} alt="" /> : null}
+                        {p.kind === 'video' ? (
+                          <>
+                            <video src={p.card} preload="metadata" muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+                              <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,.55)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 10 }}>▶</span>
+                            </span>
+                          </>
+                        ) : p.card ? (
+                          <img src={p.card} alt="" />
+                        ) : null}
                         <span className="x" onClick={() => delPhoto.mutate(p.id)}>×</span>
                       </div>
                     ))}
                     <div className="add" onClick={() => fileRef.current?.click()}><Ic d={AI.plus} s={20} /></div>
                   </div>
-                  <input ref={fileRef} type="file" multiple accept="image/*" hidden onChange={onFiles} />
+                  <input ref={fileRef} type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime" hidden onChange={onFiles} />
                 </>
               ) : (
                 <div className="dz">
                   <Ic d={AI.camera} s={26} />
-                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем добавьте фото</div>
-                  <div className="num" style={{ fontSize: 11 }}>JPG, PNG · до 25 шт</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем добавьте фото и видео</div>
+                  <div className="num" style={{ fontSize: 11 }}>JPG, PNG, MP4 · до 50 шт</div>
                 </div>
               )}
             </div>
@@ -254,19 +308,47 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
                 <span style={{ width: 26, height: 26, borderRadius: 7, background: '#d6f0e0', color: '#1f8a52', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 12, fontFamily: 'var(--num)' }}>А</span>
                 <div><h3>Отчёт Автотеки</h3><div className="sub">проверка истории — показывается покупателю</div></div>
               </div>
-              {lot?.autoteka?.attached
+              {lot?.autotekaPdfUrl
                 ? <span className="sb sold"><span className="dot"></span> прикреплён</span>
                 : <span className="sb fin">не прикреплён</span>}
             </div>
             <div style={{ padding: 20 }}>
-              <div style={{ display: 'flex', gap: 9 }}>
-                <input className="in" value={form.vin} onChange={set('vin')} placeholder="VIN автомобиля" style={{ flex: 1 }} />
-              </div>
-              <div className="dz" style={{ marginTop: 12 }}>
-                <Ic d={AI.doc} s={26} />
-                <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Загрузить PDF-отчёт Автотеки</div>
-                <div className="num" style={{ fontSize: 11 }}>или подтянуть автоматически по VIN</div>
-              </div>
+              {uploadPdf.isError && (
+                <div style={{ marginBottom: 12, font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>
+                  Не удалось загрузить отчёт: {uploadPdf.error.message}
+                </div>
+              )}
+              {id && lot?.autotekaPdfUrl ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--panel2)' }}>
+                  <span style={{ width: 22, height: 22, color: 'var(--accent)', flex: 'none' }}>{AI.doc}</span>
+                  <div style={{ flex: 1, font: '600 13.5px/1.2 var(--ui)' }}>PDF-отчёт прикреплён</div>
+                  <a className="btn sm" href={lot.autotekaPdfUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Открыть</a>
+                  <button
+                    className="iconbtn2"
+                    title="Удалить отчёт"
+                    disabled={deletePdf.isPending}
+                    onClick={() => deletePdf.mutate()}
+                    style={{ width: 30, height: 30, fontSize: 15 }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : id ? (
+                <>
+                  <div className="dz" style={{ cursor: 'pointer' }} onClick={() => pdfRef.current?.click()}>
+                    <Ic d={AI.doc} s={26} />
+                    <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>{uploadPdf.isPending ? 'Загрузка…' : 'Загрузить PDF-отчёт Автотеки'}</div>
+                    <div className="num" style={{ fontSize: 11 }}>PDF · до 25 МБ</div>
+                  </div>
+                  <input ref={pdfRef} type="file" accept="application/pdf" hidden onChange={onPdf} />
+                </>
+              ) : (
+                <div className="dz">
+                  <Ic d={AI.doc} s={26} />
+                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем прикрепите отчёт</div>
+                  <div className="num" style={{ fontSize: 11 }}>PDF · до 25 МБ</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -288,6 +370,11 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
               <div>
                 <label className="fld-l">Шаг ставки, ₽</label>
                 <input className="in num" value={form.bidStep} onChange={set('bidStep')} placeholder="20 000" />
+                <div className="hint">по умолчанию из глобальных параметров</div>
+              </div>
+              <div>
+                <label className="fld-l">Комиссия за выкуп, %</label>
+                <input className="in num" value={form.feeRate} onChange={set('feeRate')} placeholder={settings ? ratePct(settings.feeRate) : '1.5'} />
                 <div className="hint">по умолчанию из глобальных параметров</div>
               </div>
               <div style={{ height: 1, background: 'var(--line)' }}></div>
@@ -315,7 +402,11 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
             <div style={{ padding: '16px 20px', display: 'flex', gap: 11, alignItems: 'flex-start' }}>
               <span style={{ width: 18, height: 18, color: 'var(--gold)', flex: 'none' }}>{AI.clock}</span>
               <div style={{ fontSize: 12.5, color: 'var(--dim)', lineHeight: 1.5 }}>
-                Комиссия за выкуп <b style={{ color: 'var(--ink)' }}>1.5%</b> применяется автоматически из глобальных параметров.
+                Комиссия за выкуп{' '}
+                <b style={{ color: 'var(--ink)' }}>
+                  {form.feeRate.trim() ? form.feeRate.trim().replace('.', ',') : settings ? ratePct(settings.feeRate).replace('.', ',') : '—'}%
+                </b>{' '}
+                {form.feeRate.trim() ? '(индивидуальная для лота)' : '(из глобальных параметров)'}.
               </div>
             </div>
           </div>

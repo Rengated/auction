@@ -240,4 +240,57 @@ describe('Auction engine', () => {
     expect(fresh.bidCount).toBe(1);
     expect(fresh.reserveMet).toBe(false); // откат ниже резерва
   });
+
+  it('(и1) отклонение ставки из середины ленты не меняет цену и лидера', async () => {
+    const lot = await createLot();
+    const [u1, u2, mgr] = await Promise.all([createUser('i1'), createUser('i2'), createUser('im')]);
+    const r1 = await bids.placeBid(lot.id, u1.id, 1_020_000, randomUUID());
+    const r2 = await bids.placeBid(lot.id, u2.id, 1_300_000, randomUUID());
+
+    await lifecycle.rejectBid(lot.id, r1.bid.id, mgr.id);
+
+    const fresh = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
+    expect(Number(fresh.currentPrice)).toBe(1_300_000);
+    expect(fresh.currentBidId).toBe(r2.bid.id);
+    expect(fresh.bidCount).toBe(1);
+    expect(fresh.reserveMet).toBe(true);
+  });
+
+  it('(и2) отклонение единственной ставки откатывает к стартовой цене', async () => {
+    const lot = await createLot();
+    const [u, mgr] = await Promise.all([createUser('i3'), createUser('im2')]);
+    const r = await bids.placeBid(lot.id, u.id, 1_020_000, randomUUID());
+
+    await lifecycle.rejectBid(lot.id, r.bid.id, mgr.id);
+
+    const fresh = await prisma.lot.findUniqueOrThrow({ where: { id: lot.id } });
+    expect(Number(fresh.currentPrice)).toBe(1_000_000);
+    expect(fresh.currentBidId).toBeNull();
+    expect(fresh.bidCount).toBe(0);
+    expect(fresh.reserveMet).toBe(false);
+  });
+
+  it('(и3) повторное отклонение той же ставки → конфликт', async () => {
+    const lot = await createLot();
+    const [u, mgr] = await Promise.all([createUser('i4'), createUser('im3')]);
+    const r = await bids.placeBid(lot.id, u.id, 1_020_000, randomUUID());
+
+    await lifecycle.rejectBid(lot.id, r.bid.id, mgr.id);
+    await expect(lifecycle.rejectBid(lot.id, r.bid.id, mgr.id)).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it('(к) индивидуальная комиссия лота попадает в снимок сделки', async () => {
+    const lot = await createLot({ feeRate: 0.03 });
+    const u = await createUser('k');
+    const amount = 1_250_000;
+    await bids.placeBid(lot.id, u.id, amount, randomUUID());
+
+    await lifecycle.closeLot(lot.id, { force: true });
+
+    const deal = await prisma.deal.findUniqueOrThrow({ where: { lotId: lot.id } });
+    expect(Number(deal.feeRate)).toBe(0.03);
+    expect(Number(deal.feeAmount)).toBe(Math.round(amount * 0.03));
+  });
 });

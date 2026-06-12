@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useMe } from './lib/queries';
+import { useMe, useUnreadCount } from './lib/queries';
+import { useUiStore } from './lib/ui-store';
 import { I } from './components/icons';
 import { HermesH, HermesLogo } from './components/brand';
 
@@ -8,6 +9,7 @@ import { HermesH, HermesLogo } from './components/brand';
 export function MobileShell({ children, nav = true }: { children: ReactNode; nav?: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { data: unread } = useUnreadCount();
   const items = [
     ['/', 'Лоты', I.catalog],
     ['/my-bids', 'Ставки', I.bids],
@@ -22,7 +24,12 @@ export function MobileShell({ children, nav = true }: { children: ReactNode; nav
         <div className="nav">
           {items.map(([path, label, icon]) => (
             <button key={path} className={`tab ${active(path) ? 'on' : ''}`} onClick={() => navigate(path)}>
-              <span className="ic">{icon}</span>
+              <span className="ic" style={{ position: 'relative' }}>
+                {icon}
+                {path === '/profile' && (unread?.count ?? 0) > 0 && (
+                  <span style={{ position: 'absolute', top: -1, right: -3, width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />
+                )}
+              </span>
               <span>{label}</span>
             </button>
           ))}
@@ -32,17 +39,24 @@ export function MobileShell({ children, nav = true }: { children: ReactNode; nav
   );
 }
 
-/** Веб-оболочка: топбар (бренд, нав-ссылки, поиск, аватар) + футер. */
+/** Веб-оболочка: топбар (бренд, нав-ссылки, поиск, тема, уведомления, аватар) + футер. */
 export function WebShell({ children, onSearch }: { children: ReactNode; onSearch?: (q: string) => void }) {
   const { data: me } = useMe();
+  const { data: unread } = useUnreadCount();
+  const theme = useUiStore((s) => s.theme);
+  const toggleTheme = useUiStore((s) => s.toggleTheme);
   const location = useLocation();
   const navigate = useNavigate();
   const links = [
     ['/', 'Каталог'],
     ['/live', 'Живые торги'],
     ['/my-bids', 'Мои ставки'],
-    ['/sell', 'Продать авто'],
   ] as const;
+  const iconBtn = {
+    width: 38, height: 38, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)',
+    color: 'var(--text-dim)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 8, flex: 'none',
+  } as const;
+  const unreadCount = unread?.count ?? 0;
   return (
     <div className="web">
       <div className="topbar">
@@ -70,6 +84,19 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
                 }}
               />
             </div>
+            {me && (
+              <button style={{ ...iconBtn, position: 'relative' }} title="Уведомления" onClick={() => navigate('/profile/notif')}>
+                {I.bell}
+                {unreadCount > 0 && (
+                  <span className="num" style={{ position: 'absolute', top: -5, right: -5, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8, background: 'var(--live)', color: '#fff', font: '700 10px/16px var(--num)', textAlign: 'center' }}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+            <button style={iconBtn} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={toggleTheme}>
+              {theme === 'dark' ? I.sun : I.moon}
+            </button>
             <button className="avatar" title={me ? 'Профиль' : 'Войти'} onClick={() => navigate(me ? '/profile' : '/auth')}>
               {me?.avatarUrl ? <img src={me.avatarUrl} alt="" /> : (me?.displayName?.[0] ?? '·').toUpperCase()}
             </button>

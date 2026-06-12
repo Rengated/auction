@@ -20,7 +20,7 @@ export class MyBidsService {
   ) {}
 
   async list(userId: string, tab: 'active' | 'won'): Promise<MyBidRow[]> {
-    const step = await this.settings.defaultBidStep();
+    const defaults = await this.settings.lotDefaults();
 
     if (tab === 'won') {
       const deals = await this.prisma.deal.findMany({
@@ -29,7 +29,7 @@ export class MyBidsService {
         orderBy: { createdAt: 'desc' },
       });
       return deals.map((d) => ({
-        lot: lotToDto(d.lot, step),
+        lot: lotToDto(d.lot, defaults),
         myLastBid: Number(d.amount),
         isLeading: true,
         dealId: d.id,
@@ -50,7 +50,7 @@ export class MyBidsService {
     });
     const maxByLot = new Map(myBids.map((b) => [b.lotId, Number(b._max.amount)]));
     return lots.map((l) => ({
-      lot: lotToDto(l, step),
+      lot: lotToDto(l, defaults),
       myLastBid: maxByLot.get(l.id) ?? 0,
       isLeading: l.currentBid?.userId === userId,
     }));

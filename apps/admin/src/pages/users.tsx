@@ -52,7 +52,6 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
               <div className="span2"><label className="fld-l">ФИО</label><input className="in" readOnly value={user.name} /></div>
               <div><label className="fld-l">Телефон</label><input className="in num" readOnly value={user.phone ?? ''} placeholder="—" /></div>
               <div><label className="fld-l">Email</label><input className="in" readOnly value={user.email ?? ''} placeholder="—" /></div>
-              <div><label className="fld-l">Город</label><input className="in" readOnly value={user.city ?? ''} placeholder="—" /></div>
             </div>
             <div className="hint">Профиль заполняется пользователем при входе через Яндекс ID.</div>
           </div>
@@ -211,10 +210,10 @@ export function UsersPage() {
           </div>
         </div>
         <table className="tb">
-          <thead><tr><th>Пользователь</th><th>Телефон</th><th>Город</th><th>Роль</th><th>Статус</th><th>Ставок / побед</th><th></th></tr></thead>
+          <thead><tr><th>Пользователь</th><th>Телефон</th><th>Роль</th><th>Статус</th><th>Ставок / побед</th><th></th></tr></thead>
           <tbody>
             {users.length === 0 ? (
-              <tr><td className="empty" colSpan={7}>Пользователей нет</td></tr>
+              <tr><td className="empty" colSpan={6}>Пользователей нет</td></tr>
             ) : (
               users.map((u) => {
                 const blocked = isBlocked(u);
@@ -232,7 +231,6 @@ export function UsersPage() {
                       </div>
                     </td>
                     <td className="num" style={{ color: 'var(--dim)' }}>{u.phone ?? '—'}</td>
-                    <td style={{ color: 'var(--dim)' }}>{u.city ?? '—'}</td>
                     <td>
                       <span className="sb" style={{ background: u.role === 'buyer' ? 'var(--panel3)' : 'var(--accent-soft)', color: u.role === 'buyer' ? 'var(--dim)' : 'var(--accent)' }}>
                         {ROLE_LABEL[u.role]}

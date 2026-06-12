@@ -1,17 +1,21 @@
 /* Профиль: мобильные экраны (ScreenProfile / ScreenProfilePage) и веб (сайдбар + панели) из дизайна. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { rub, type MeDto, type NotificationDto } from '@hermes/shared';
+import { NOTIFICATION_EVENTS, rub, type MeDto, type NotificationDto, type NotificationEvent } from '@hermes/shared';
 import {
   useConfig,
   useMe,
   useNotifications,
+  useUnreadCount,
   useMyBids,
   useSaveContacts,
   useMarkNotificationsRead,
+  useMarkNotificationRead,
+  useSaveNotificationPrefs,
   logout,
   type MyBidRow,
 } from '../lib/queries';
+import { useUiStore } from '../lib/ui-store';
 import { disablePush, enablePush, getPushState, type PushState } from '../lib/push';
 import { useNow } from '../lib/time';
 import { useIsMobile } from '../lib/layout';
@@ -25,14 +29,31 @@ import { I, Ic } from '../components/icons';
 const NOTIF_META: Record<NotificationDto['type'], { title: string; dot: string }> = {
   outbid: { title: 'Вашу ставку перебили', dot: 'var(--live)' },
   won: { title: 'Вы выиграли лот', dot: 'var(--ok)' },
-  lot_starting: { title: 'Старт торгов', dot: 'var(--accent)' },
+  lot_starting: { title: 'Торги начались', dot: 'var(--accent)' },
   lot_ending: { title: 'Лот скоро закроется', dot: 'var(--live)' },
+  lot_extended: { title: 'Торги продлены', dot: 'var(--accent)' },
+  lot_withdrawn: { title: 'Лот снят с торгов', dot: 'var(--text-faint)' },
   deal_update: { title: 'Сделка обновлена', dot: 'var(--text-faint)' },
   system: { title: 'Уведомление', dot: 'var(--text-faint)' },
 };
 
+const notifTitle = (n: NotificationDto): string =>
+  n.type === 'lot_starting' && n.payload.phase === 'soon'
+    ? 'Скоро старт торгов'
+    : (NOTIF_META[n.type] ?? NOTIF_META.system).title;
+
 const notifSub = (n: NotificationDto): string =>
   String(n.payload.lotTitle ?? '') + (n.payload.newAmount ? ` · теперь ${rub(Number(n.payload.newAmount))}` : '');
+
+/** «Сегодня» / «Вчера» / «10 июня» — секции списка уведомлений. */
+const dayLabel = (iso: string, now: number): string => {
+  const d = new Date(iso);
+  const startOf = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  const days = Math.round((startOf(new Date(now)) - startOf(d)) / 86_400_000);
+  if (days === 0) return 'Сегодня';
+  if (days === 1) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+};
 
 const initialOf = (me: MeDto): string => (me.displayName?.trim().charAt(0) || '?').toUpperCase();
 
@@ -57,7 +78,6 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
   const [fullName, setFullName] = useState(me.contacts.fullName ?? '');
   const [phone, setPhone] = useState(me.contacts.phone ?? '');
   const [email, setEmail] = useState(me.contacts.email ?? '');
-  const [city, setCity] = useState(me.contacts.city ?? '');
   const [err, setErr] = useState<string | null>(null);
 
   const submit = () => {
@@ -68,7 +88,7 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
     }
     setErr(null);
     save.mutate(
-      { fullName: fullName.trim(), phone: phone.trim(), email: email.trim() || undefined, city: city.trim() || undefined },
+      { fullName: fullName.trim(), phone: phone.trim(), email: email.trim() || undefined },
       { onSuccess: onSaved },
     );
   };
@@ -77,7 +97,6 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
     ['Имя', fullName, setFullName, 'Александр Соколов'],
     ['Телефон', phone, setPhone, '+7 900 000-00-00'],
     ['Email', email, setEmail, 'you@mail.ru'],
-    ['Город', city, setCity, 'Москва'],
   ];
 
   return (
@@ -136,40 +155,159 @@ function PushToggle() {
   );
 }
 
-/** Список уведомлений (общий) — при маунте помечаем прочитанными. */
-function NotifList({ mobile }: { mobile: boolean }) {
-  const { data: items = [] } = useNotifications(true);
-  const markRead = useMarkNotificationsRead();
-  const now = useNow();
-  useEffect(() => {
-    markRead.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (items.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <PushToggle />
-        <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Уведомлений нет</div>
-      </div>
-    );
-  }
+/** Переключатель темы оформления — карточка в настройках профиля. */
+function ThemeCard() {
+  const theme = useUiStore((s) => s.theme);
+  const toggleTheme = useUiStore((s) => s.toggleTheme);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <PushToggle />
-      {items.map((n) => {
-        const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
+    <div className="card" style={{ padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>Тема оформления</div>
+        <div className="num" style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 4 }}>тёмная или светлая — сохраняется на устройстве</div>
+      </div>
+      <button className={`chip ${theme === 'light' ? 'on' : ''}`} onClick={toggleTheme}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Ic d={theme === 'dark' ? I.moon : I.sun} s={13} /> {theme === 'dark' ? 'Тёмная' : 'Светлая'}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Мини-переключатель вкл/выкл для настроек уведомлений. */
+function PrefSwitch({ on, dim, onClick }: { on: boolean; dim?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={dim}
+      style={{
+        width: 36, height: 21, borderRadius: 11, padding: 0, flex: 'none', position: 'relative',
+        cursor: dim ? 'default' : 'pointer', opacity: dim ? 0.35 : 1, transition: 'all .15s ease',
+        border: `1px solid ${on ? 'color-mix(in srgb, var(--accent) 55%, transparent)' : 'var(--line)'}`,
+        background: on ? 'color-mix(in srgb, var(--accent) 20%, transparent)' : 'var(--surface-2)',
+      }}
+    >
+      <span style={{ position: 'absolute', top: 2.5, left: on ? 17 : 2.5, width: 14, height: 14, borderRadius: '50%', background: on ? 'var(--accent)' : 'var(--text-faint)', transition: 'left .15s ease' }} />
+    </button>
+  );
+}
+
+const PREF_LABELS: Record<NotificationEvent, string> = {
+  outbid: 'Перебили ставку',
+  won: 'Победа в торгах',
+  lot_starting: 'Старт торгов',
+  lot_ending: 'Скоро финал',
+  lot_extended: 'Продление торгов',
+  lot_withdrawn: 'Лот снят',
+  deal_update: 'Статус сделки',
+};
+
+/** Настройки событий: лента (in-app) и push по каждому типу. */
+function NotifPrefs({ me, mobile }: { me: MeDto; mobile: boolean }) {
+  const save = useSaveNotificationPrefs();
+  const [push, setPush] = useState<PushState>('off');
+  useEffect(() => {
+    getPushState().then(setPush);
+  }, []);
+  const pushOn = push === 'on';
+  const col = { width: 44, textAlign: 'center' as const, flex: 'none' as const };
+  return (
+    <div className="card" style={{ padding: mobile ? '13px 15px' : '15px 18px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 11, borderBottom: '1px solid var(--line-soft)' }}>
+        <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>Какие события получать</span>
+        <span className="eyebrow" style={col}>лента</span>
+        <span className="eyebrow" style={{ ...col, opacity: pushOn ? 1 : 0.4 }}>push</span>
+      </div>
+      {NOTIFICATION_EVENTS.map((ev, idx) => {
+        const p = me.notificationPrefs[ev];
         return (
-          <div key={n.id} className="card" style={{ padding: mobile ? '13px 15px' : '15px 18px', display: 'flex', gap: mobile ? 12 : 13, alignItems: 'flex-start' }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: meta.dot, marginTop: 5, flex: 'none' }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: mobile ? 14 : 14.5, fontWeight: 600 }}>{meta.title}</div>
-              {notifSub(n) && <div className="num" style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{notifSub(n)}</div>}
-            </div>
-            <span className="num" style={{ fontSize: mobile ? 11 : 11.5, color: 'var(--text-faint)', flex: 'none' }}>{relTime(n.createdAt, now)}</span>
+          <div key={ev} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: idx < NOTIFICATION_EVENTS.length - 1 ? '1px solid var(--line-soft)' : 0 }}>
+            <span style={{ flex: 1, fontSize: 13, color: 'var(--text-dim)' }}>{PREF_LABELS[ev]}</span>
+            <span style={{ ...col, display: 'inline-flex', justifyContent: 'center' }}>
+              <PrefSwitch on={p.inApp} onClick={() => save.mutate({ [ev]: { inApp: !p.inApp } })} />
+            </span>
+            <span style={{ ...col, display: 'inline-flex', justifyContent: 'center' }}>
+              <PrefSwitch on={p.push} dim={!pushOn} onClick={() => save.mutate({ [ev]: { push: !p.push } })} />
+            </span>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Центр уведомлений: настройки + лента, сгруппированная по дням. */
+function NotifList({ mobile }: { mobile: boolean }) {
+  const { data: me } = useMe();
+  const { data: items = [] } = useNotifications(true);
+  const { data: unreadDto } = useUnreadCount();
+  const markAll = useMarkNotificationsRead();
+  const markOne = useMarkNotificationRead();
+  const navigate = useNavigate();
+  const now = useNow();
+  const unread = unreadDto?.count ?? 0;
+
+  // Группировка по дням (лента приходит отсортированной по убыванию даты)
+  const groups: Array<[string, NotificationDto[]]> = [];
+  for (const n of items) {
+    const label = dayLabel(n.createdAt, now);
+    const last = groups[groups.length - 1];
+    if (last && last[0] === label) last[1].push(n);
+    else groups.push([label, [n]]);
+  }
+
+  const open = (n: NotificationDto) => {
+    if (!n.readAt) markOne.mutate(n.id);
+    const lotId = n.payload.lotId;
+    if (typeof lotId === 'string' && lotId) navigate(`/lots/${lotId}`);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <PushToggle />
+      {me && <NotifPrefs me={me} mobile={mobile} />}
+      {items.length === 0 ? (
+        <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Уведомлений нет</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4 }}>
+            <span className="num" style={{ fontSize: 12, color: unread > 0 ? 'var(--accent)' : 'var(--text-faint)' }}>
+              {unread > 0 ? `непрочитанных · ${unread}` : 'все прочитано'}
+            </span>
+            {unread > 0 && (
+              <button className="chip" onClick={() => markAll.mutate()} disabled={markAll.isPending}>Прочитать все</button>
+            )}
+          </div>
+          {groups.map(([label, list]) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="eyebrow" style={{ margin: '6px 2px 0' }}>{label}</div>
+              {list.map((n) => {
+                const meta = NOTIF_META[n.type] ?? NOTIF_META.system;
+                const isUnread = !n.readAt;
+                return (
+                  <div
+                    key={n.id}
+                    className="card"
+                    onClick={() => open(n)}
+                    style={{
+                      padding: mobile ? '13px 15px' : '15px 18px', display: 'flex', gap: mobile ? 12 : 13,
+                      alignItems: 'flex-start', cursor: 'pointer',
+                      background: isUnread ? 'color-mix(in srgb, var(--accent) 7%, var(--surface))' : undefined,
+                    }}
+                  >
+                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: isUnread ? 'var(--accent)' : meta.dot, opacity: isUnread ? 1 : 0.45, marginTop: 5, flex: 'none' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: mobile ? 14 : 14.5, fontWeight: 600 }}>{notifTitle(n)}</div>
+                      {notifSub(n) && <div className="num" style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{notifSub(n)}</div>}
+                    </div>
+                    <span className="num" style={{ fontSize: mobile ? 11 : 11.5, color: 'var(--text-faint)', flex: 'none' }}>{relTime(n.createdAt, now)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -206,34 +344,59 @@ function WonList({ mobile }: { mobile: boolean }) {
   );
 }
 
-/** Контакты менеджера (статичный блок из прототипа). */
+/** Телефон → href tel: (цифры и плюс). */
+const telHref = (v: string) => `tel:${v.replace(/[^\d+]/g, '')}`;
+
+/** WhatsApp: цифры, ведущая 8 → 7. */
+const waHref = (v: string) => {
+  let d = v.replace(/\D/g, '');
+  if (d.startsWith('8')) d = `7${d.slice(1)}`;
+  return `https://wa.me/${d}`;
+};
+
+/** MAX: @username → max.ru/{name}, иначе max.ru/u/{цифры}. */
+const maxHref = (v: string) =>
+  v.startsWith('@') ? `https://max.ru/${v.slice(1)}` : `https://max.ru/u/${v.replace(/\D/g, '')}`;
+
+/** Контакты менеджера — из публичных настроек (useConfig). */
 function ManagerBlock({ mobile }: { mobile: boolean }) {
+  const { data: cfg } = useConfig();
+  const mc = cfg?.managerContacts ?? {};
   const btnCls = mobile ? 'btn block' : 'wbtn';
   const linkStyle = {
     textDecoration: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--text)',
   } as const;
-  const contacts: Array<[string, string, string]> = [
-    ['☎ Позвонить', '+7 905 000-11-22', 'tel:+79050001122'],
-    ['Telegram', '@hermes_trade', 'https://t.me/hermes_trade'],
-    ['✉ Почта', 'manager@hermes-trade.ru', 'mailto:manager@hermes-trade.ru'],
-  ];
+  // [иконка, подпись, значение, href, внешняя ли ссылка] — порядок фиксированный
+  const contacts: Array<[ReactNode, string, string, string, boolean]> = [];
+  if (mc.phone) contacts.push([I.phone, 'Позвонить', mc.phone, telHref(mc.phone), false]);
+  if (mc.telegram) contacts.push([I.telegram, 'Telegram', mc.telegram, `https://t.me/${mc.telegram.replace(/^@/, '')}`, true]);
+  if (mc.whatsapp) contacts.push([I.whatsapp, 'WhatsApp', mc.whatsapp, waHref(mc.whatsapp), true]);
+  if (mc.max) contacts.push([I.maxIcon, 'MAX', mc.max, maxHref(mc.max), true]);
+  if (mc.email) contacts.push([I.mail, 'Почта', mc.email, `mailto:${mc.email}`, false]);
+  const name = mc.name?.trim();
+  const title = name ? `${name}, ваш менеджер` : 'Менеджер Hermes Trade';
+  const initial = (name?.charAt(0) || 'М').toUpperCase();
   return (
     <div>
       <div className="card" style={{ padding: mobile ? 18 : 20, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: mobile ? 54 : 56, height: mobile ? 54 : 56, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 18px/1 var(--num)', color: 'var(--accent)', flex: 'none' }}>Д</div>
+        <div style={{ width: mobile ? 54 : 56, height: mobile ? 54 : 56, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 18px/1 var(--num)', color: 'var(--accent)', flex: 'none' }}>{initial}</div>
         <div>
-          <div style={{ font: `700 ${mobile ? 16 : 17}px/1.2 var(--ui)` }}>Дмитрий Соколов, ваш менеджер</div>
+          <div style={{ font: `700 ${mobile ? 16 : 17}px/1.2 var(--ui)` }}>{title}</div>
           <div className="num" style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 6 }}>на связи 9:00–21:00 МСК</div>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 14 }}>
-        {contacts.map(([label, value, href]) => (
-          <a key={label} href={href} className={btnCls} style={linkStyle}>
-            <span>{label}</span>
-            <span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>{value}</span>
-          </a>
-        ))}
+        {contacts.length === 0 ? (
+          <div className="card" style={{ padding: '16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Контакты появятся позже</div>
+        ) : (
+          contacts.map(([icon, label, value, href, ext]) => (
+            <a key={label} href={href} className={btnCls} style={linkStyle} {...(ext ? { target: '_blank', rel: 'noreferrer' } : {})}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}><Ic d={icon} s={16} /> {label}</span>
+              <span className="num" style={{ color: 'var(--text-dim)', fontSize: 13 }}>{value}</span>
+            </a>
+          ))
+        )}
       </div>
       <div className="card" style={{ marginTop: 16, padding: mobile ? '14px 16px' : '16px 18px' }}>
         <div className={mobile ? 'eyebrow' : 'eyebrow-w'} style={{ marginBottom: mobile ? 9 : 12 }}>чем помогает</div>
@@ -280,12 +443,7 @@ function ScreenProfile({ me }: { me: MeDto }) {
             </div>
           </div>
         </div>
-        <div style={{ padding: '20px 20px 0' }}>
-          <button className="btn accent block" onClick={() => navigate('/sell')} style={{ padding: '14px' }}>
-            <Ic d={I.plus} s={18} /> Выставить авто на торги
-          </button>
-        </div>
-        <div style={{ padding: '16px 20px 18px' }}>
+        <div style={{ padding: '20px 20px 18px' }}>
           <div className="card">
             {menu.map((m, i) => (
               <button key={m[0]} onClick={() => navigate(`/profile/${m[0]}`)} style={{ width: '100%', textAlign: 'left', background: 'none', border: 0, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '15px 18px', borderBottom: i < menu.length - 1 ? '1px solid var(--line-soft)' : 0 }}>
@@ -297,6 +455,7 @@ function ScreenProfile({ me }: { me: MeDto }) {
               </button>
             ))}
           </div>
+          <div style={{ marginTop: 14 }}><ThemeCard /></div>
           <button className="btn block" onClick={doLogout} style={{ marginTop: 14, marginBottom: 96, background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>Выйти из аккаунта</button>
         </div>
       </div>

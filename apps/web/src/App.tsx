@@ -7,13 +7,15 @@ import { getSocket } from './lib/ws';
 import { useIsMobile } from './lib/layout';
 import { useUiStore } from './lib/ui-store';
 import { MobileShell, WebShell } from './shells';
-import { AuthPage } from './pages/auth';
+import { AuthPage, BlockedScreen } from './pages/auth';
 import { CatalogPage } from './pages/catalog';
 import { LivePage } from './pages/live';
 import { LotPage } from './pages/lot';
 import { MyBidsPage } from './pages/my-bids';
 import { ProfilePage } from './pages/profile';
-import { SellPage } from './pages/sell';
+
+/** Цвет браузерного хрома под тему (--bg из tokens.css). */
+const THEME_COLOR = { dark: '#101216', light: '#f7f7f5' } as const;
 
 function Shell({ children, mobileNav = true }: { children: React.ReactNode; mobileNav?: boolean }) {
   const isMobile = useIsMobile();
@@ -31,6 +33,7 @@ function Gate({ children }: { children: React.ReactNode }) {
     return <div style={{ display: 'grid', placeItems: 'center', height: '100dvh', color: 'var(--text-faint)' }}>Hermes Trade…</div>;
   }
   if (!me) return <AuthPage />;
+  if (me.blockedUntil && new Date(me.blockedUntil) > new Date()) return <BlockedScreen me={me} />;
   return <>{children}</>;
 }
 
@@ -41,9 +44,15 @@ const page = (el: React.ReactNode, mobileNav = true) => (
 );
 
 function Router() {
+  const theme = useUiStore((s) => s.theme);
   useEffect(() => {
     getSocket();
   }, []);
+  // Тема: атрибут на <html> (tokens.css: тёмная в :root, светлая в [data-theme='light']) + цвет хрома
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[theme]);
+  }, [theme]);
   return (
     <BrowserRouter>
       <Routes>
@@ -54,7 +63,6 @@ function Router() {
         <Route path="/my-bids" element={page(<MyBidsPage />)} />
         <Route path="/profile" element={page(<ProfilePage />)} />
         <Route path="/profile/:page" element={page(<ProfilePage />, false)} />
-        <Route path="/sell" element={page(<SellPage />, false)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -1,4 +1,5 @@
-import type { DisplayStatus, LotStatus } from './types';
+import type { DisplayStatus, LotStatus, NotificationPrefs } from './types';
+import { DEFAULT_NOTIFICATION_PREFS, NOTIFICATION_EVENTS } from './types';
 
 /** Порог «СКОРО КОНЕЦ», секунд (из дизайна). */
 export const ENDING_THRESHOLD_SEC = 300;
@@ -60,6 +61,24 @@ export function feeAmount(amount: number, feeRate: number): number {
 
 export function feePctLabel(feeRate: number): string {
   return (feeRate * 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
+/** Разреженные сохранённые настройки уведомлений поверх дефолтов. */
+export function mergeNotificationPrefs(stored: unknown): NotificationPrefs {
+  const out = {} as NotificationPrefs;
+  const src = (stored && typeof stored === 'object' ? stored : {}) as Record<
+    string,
+    { inApp?: unknown; push?: unknown } | undefined
+  >;
+  for (const ev of NOTIFICATION_EVENTS) {
+    const d = DEFAULT_NOTIFICATION_PREFS[ev];
+    const s = src[ev];
+    out[ev] = {
+      inApp: typeof s?.inApp === 'boolean' ? s.inApp : d.inApp,
+      push: typeof s?.push === 'boolean' ? s.push : d.push,
+    };
+  }
+  return out;
 }
 
 /** Маскированное имя участника для публичной ленты. */

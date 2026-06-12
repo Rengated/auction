@@ -1,5 +1,5 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LotDto, MeDto } from '@hermes/shared';
+import type { DealStatus, LotDto, MeDto } from '@hermes/shared';
 import { ApiError, del, get, patch, post, postForm, putJson } from './api';
 
 export const queryClient = new QueryClient({
@@ -14,7 +14,12 @@ export const queryClient = new QueryClient({
 
 /* ---------- типы админ-API ---------- */
 
-export type AdminLot = LotDto & { published: boolean; lotBidStep: number | null };
+export type AdminLot = LotDto & {
+  published: boolean;
+  lotBidStep: number | null;
+  /** Своя комиссия лота (доля 0..1), null → глобальная */
+  lotFeeRate: number | null;
+};
 
 export interface LotFormPayload {
   make: string;
@@ -35,9 +40,10 @@ export interface LotFormPayload {
   startPrice: number;
   reservePrice: number;
   bidStep?: number | null;
+  /** Комиссия лота как доля (0.015 = 1.5%); null → глобальная */
+  feeRate?: number | null;
   startsAt: string; // ISO
   endsAt: string; // ISO
-  autoteka?: Record<string, unknown>;
   published?: boolean;
 }
 
@@ -46,11 +52,11 @@ export interface AdminDeal {
   lotId: string;
   lotTitle: string;
   photo: string | null;
-  winner: { id: string; name: string; phone: string | null; email: string | null; city: string | null };
+  winner: { id: string; name: string; phone: string | null; email: string | null };
   amount: number;
   feeRate: number;
   feeAmount: number;
-  status: 'pending' | 'contract' | 'closed';
+  status: DealStatus;
   note: string;
   createdAt: string;
   closedAt: string | null;
@@ -61,7 +67,6 @@ export interface AdminUser {
   name: string;
   phone: string | null;
   email: string | null;
-  city: string | null;
   role: 'buyer' | 'manager' | 'admin';
   verified: boolean;
   blockedUntil: string | null;
@@ -80,6 +85,8 @@ export interface AdminSettings {
   antisnipeExtensionSec: number;
   managerContacts: Record<string, string>;
   notificationToggles: Record<string, boolean>;
+  telegramBotToken: string;
+  telegramChannelId: string;
 }
 
 export interface DashboardData {
@@ -98,7 +105,6 @@ export interface Participant {
   name: string;
   phone: string | null;
   email: string | null;
-  city: string | null;
   maxBid: number;
   bids: number;
   isLeader: boolean;
@@ -218,7 +224,27 @@ export function useDeletePhoto(lotId: string) {
   });
 }
 
-/** Действия управления торгом: extend/close-early/withdraw/reject-last-bid/start-now/step. */
+export function useUploadAutoteka(lotId: string) {
+  const qc = useQueryClient();
+  return useMutation<{ autotekaPdfUrl: string }, ApiError, File>({
+    mutationFn: (file) => {
+      const form = new FormData();
+      form.append('file', file);
+      return postForm(`/admin/lots/${lotId}/autoteka`, form);
+    },
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+export function useDeleteAutoteka(lotId: string) {
+  const qc = useQueryClient();
+  return useMutation<unknown, ApiError, void>({
+    mutationFn: () => del(`/admin/lots/${lotId}/autoteka`),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+/** Действия управления торгом: extend/close-early/withdraw/reject-last-bid/reject-bid/start-now/step. */
 export function useAuctionAction(lotId: string) {
   const qc = useQueryClient();
   return useMutation<
@@ -228,13 +254,16 @@ export function useAuctionAction(lotId: string) {
     | { action: 'close-early' }
     | { action: 'withdraw' }
     | { action: 'reject-last-bid' }
+    | { action: 'reject-bid'; bidId: string }
     | { action: 'start-now' }
     | { action: 'step'; step: number }
   >({
     mutationFn: (v) =>
       v.action === 'step'
         ? patch(`/admin/lots/${lotId}/step`, { step: v.step })
-        : post(`/admin/lots/${lotId}/${v.action}`, v.action === 'extend' ? { seconds: v.seconds } : undefined),
+        : v.action === 'reject-bid'
+          ? post(`/admin/lots/${lotId}/bids/${v.bidId}/reject`)
+          : post(`/admin/lots/${lotId}/${v.action}`, v.action === 'extend' ? { seconds: v.seconds } : undefined),
     onSuccess: () => {
       invalidateLots(qc);
       qc.invalidateQueries({ queryKey: ['admin-feed', lotId] });
@@ -267,7 +296,6 @@ export function usePatchUser() {
       fullName?: string;
       phone?: string;
       email?: string;
-      city?: string;
       verified?: boolean;
     }
   >({

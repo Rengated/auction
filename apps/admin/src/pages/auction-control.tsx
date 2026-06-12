@@ -207,6 +207,20 @@ export function AuctionControlPage() {
                     <div className="num" style={{ fontSize: 11, color: 'var(--faint)', marginTop: 3 }}>{rel(r.createdAt, now)}</div>
                   </div>
                   <div className="num" style={{ fontWeight: 600 }}>{fmt(r.amount)} ₽</div>
+                  {isLive && (
+                    <button
+                      className="iconbtn2"
+                      title="Отклонить ставку"
+                      disabled={busy}
+                      onClick={() =>
+                        window.confirm(`Отклонить ставку ${fmt(r.amount)} ₽ от ${r.name}?`) &&
+                        action.mutate({ action: 'reject-bid', bidId: r.id })
+                      }
+                      style={{ width: 26, height: 26, marginLeft: 8, color: 'var(--live)' }}
+                    >
+                      <Ic d={AI.ban} s={13} />
+                    </button>
+                  )}
                 </div>
               ))
             )}

@@ -91,6 +91,14 @@ export class BidService {
         const ext = { lotId, endsAt: placed.lotAfter.endsAt.toISOString(), serverNow: new Date().toISOString() };
         this.realtime.toLot(lotId, WS_EVENTS.LOT_EXTENDED, ext);
         this.realtime.toCatalog(WS_EVENTS.LOT_EXTENDED, ext);
+
+        // «Торги продлены» участникам (кроме автора продлившей ставки)
+        const bidders = await this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
+        await this.notifications.notifyMany(
+          bidders.map((b) => b.userId).filter((id) => id !== userId),
+          'lot_extended',
+          { lotId, lotTitle: placed.lotTitle, endsAt: placed.lotAfter.endsAt.toISOString(), reason: 'antisnipe' },
+        );
       }
 
       if (placed.prevLeader && placed.prevLeader.userId !== userId) {

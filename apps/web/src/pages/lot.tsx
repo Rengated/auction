@@ -55,7 +55,7 @@ function BidPanel({ lot }: { lot: LotDto }) {
   const now = useNow();
   const bf = useBidForm(lot);
   const { data: cfg } = useConfig();
-  const feeRate = cfg?.feeRate ?? 0.015;
+  const feeRate = lot.feeRate ?? cfg?.feeRate ?? 0.015;
   const [remind, setRemind] = useState(false);
   const ds = displayStatus(lot.status, lot.endsAt, now);
   const group = STATUS_META[ds].group;
@@ -268,7 +268,7 @@ function WebBidBox({ lot }: { lot: LotDto }) {
   const now = useNow();
   const bf = useBidForm(lot);
   const { data: cfg } = useConfig();
-  const feeRate = cfg?.feeRate ?? 0.015;
+  const feeRate = lot.feeRate ?? cfg?.feeRate ?? 0.015;
   const [remind, setRemind] = useState(false);
   const ds = displayStatus(lot.status, lot.endsAt, now);
   const group = STATUS_META[ds].group;
@@ -374,7 +374,11 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
           <div className="thumbs">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className={`thumb ${i === 0 ? 'on' : ''}`}>
-                <Photo src={lot.photos[i]?.card ?? null} h={70} glyph={String(i + 1)} />
+                {lot.photos[i]?.kind === 'video' ? (
+                  <div style={{ height: 70, background: 'linear-gradient(135deg, #2a2f37 0%, #171a1f 100%)', display: 'grid', placeItems: 'center', color: '#f5f4f0', fontSize: 16, opacity: 0.9 }}>▶</div>
+                ) : (
+                  <Photo src={lot.photos[i]?.card ?? null} h={70} glyph={String(i + 1)} />
+                )}
               </div>
             ))}
           </div>
@@ -390,7 +394,7 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
                     <SpecTile icon={I.fuel} k="топливо" v={lot.fuel} />
                     <SpecTile icon={I.catalog} k="привод" v={lot.drive} />
                     <SpecTile icon={I.clock} k="коробка" v={lot.transmission} />
-                    <SpecTile icon={I.shield} k="проверка" v={lot.autoteka?.attached ? 'пройдена' : 'готовится'} />
+                    <SpecTile icon={I.shield} k="проверка" v={lot.autotekaPdfUrl ? 'пройдена' : 'готовится'} />
                   </div>
                   <div style={{ marginTop: 14 }}><AutotekaReport lot={lot} /></div>
                 </div>

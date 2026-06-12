@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import type { Request, Response } from 'express';
-import type { MeDto } from '@hermes/shared';
+import { mergeNotificationPrefs, type MeDto } from '@hermes/shared';
 import { CurrentUser, Public, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from './auth.service';
@@ -122,7 +122,10 @@ export class AuthController {
       displayName: u.displayName,
       avatarUrl: u.avatarUrl,
       contactsFilled: Boolean(u.contactsFilledAt),
-      contacts: { fullName: u.fullName, phone: u.phone, email: u.email, city: u.city },
+      contacts: { fullName: u.fullName, phone: u.phone, email: u.email },
+      blockedUntil: u.blockedUntil && u.blockedUntil > new Date() ? u.blockedUntil.toISOString() : null,
+      blockReason: u.blockedUntil && u.blockedUntil > new Date() ? u.blockReason : null,
+      notificationPrefs: mergeNotificationPrefs(u.notificationPrefs),
     };
   }
 }

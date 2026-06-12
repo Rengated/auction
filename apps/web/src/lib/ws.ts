@@ -9,6 +9,8 @@ import {
   type LotExtendedEvent,
   type LotStatusEvent,
   type LotTickDto,
+  type NotificationDto,
+  type UnreadCountDto,
 } from '@hermes/shared';
 import { queryClient } from './queries';
 import { useTimeStore } from './time';
@@ -85,8 +87,22 @@ export function getSocket(): Socket {
     queryClient.invalidateQueries({ queryKey: ['my-bids'] });
   });
 
-  socket.on(WS_EVENTS.NOTIFICATION, () => {
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  socket.on(WS_EVENTS.NOTIFICATION, (n?: NotificationDto) => {
+    // Вставляем уведомление в кэш без рефетча; фолбэк — инвалидация
+    const list = queryClient.getQueryData<NotificationDto[]>(['notifications']);
+    if (n?.id && list) {
+      if (list.some((x) => x.id === n.id)) return; // дубль — счётчик не трогаем
+      queryClient.setQueryData<NotificationDto[]>(['notifications'], [n, ...list].slice(0, 50));
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+    if (n?.id && queryClient.getQueryData<UnreadCountDto>(['notifications-unread'])) {
+      queryClient.setQueryData<UnreadCountDto>(['notifications-unread'], (old) =>
+        old ? { count: old.count + 1 } : old,
+      );
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+    }
   });
 
   // После реконнекта кэш мог «заморозиться» — рефетчим всё живое
@@ -94,6 +110,8 @@ export function getSocket(): Socket {
     queryClient.invalidateQueries({ queryKey: ['lots'] });
     queryClient.invalidateQueries({ queryKey: ['lot'] });
     queryClient.invalidateQueries({ queryKey: ['bids'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
   });
 
   return socket;

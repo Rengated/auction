@@ -1,5 +1,6 @@
-import { Controller, Delete, Get, Param, ParseUUIDPipe, Put, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, ParseUUIDPipe, Put, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser, Public, type AuthUser } from '../../common/decorators';
+import { NotBlockedGuard } from '../auth/not-blocked.guard';
 import { LotsService, type CatalogFilter } from './lots.service';
 
 @Controller('lots')
@@ -28,12 +29,14 @@ export class LotsController {
     return this.lots.bidsFeed(id, user?.id ?? null);
   }
 
+  @UseGuards(NotBlockedGuard)
   @Put(':id/favorite')
   async fav(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     await this.lots.setFavorite(id, user!.id, true);
     return { ok: true };
   }
 
+  @UseGuards(NotBlockedGuard)
   @Delete(':id/favorite')
   async unfav(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     await this.lots.setFavorite(id, user!.id, false);

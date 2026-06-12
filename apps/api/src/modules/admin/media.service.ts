@@ -48,4 +48,30 @@ export class MediaService {
       ),
     );
   }
+
+  /** Видео хранится одним файлом как есть (транскодинга нет) — ключ с расширением. */
+  async uploadLotVideo(lotId: string, buffer: Buffer, mimetype: string): Promise<string> {
+    const ext = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[mimetype] ?? 'mp4';
+    const key = `lots/${lotId}/${randomUUID()}.${ext}`;
+    await this.s3.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: mimetype }),
+    );
+    return key;
+  }
+
+  /** PDF-отчёт Автотеки как есть. */
+  async uploadAutotekaPdf(lotId: string, buffer: Buffer): Promise<string> {
+    const key = `lots/${lotId}/autoteka-${randomUUID()}.pdf`;
+    await this.s3.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: 'application/pdf' }),
+    );
+    return key;
+  }
+
+  /** Удаление одиночного объекта по точному ключу (видео, PDF). */
+  async deleteObject(objectKey: string): Promise<void> {
+    await this.s3
+      .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }))
+      .catch((e) => this.logger.warn(`delete ${objectKey}: ${e.message}`));
+  }
 }

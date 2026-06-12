@@ -23,9 +23,9 @@ enum LotStatus {
 }
 
 enum DealStatus {
-  pending
-  contract
-  closed
+  in_progress
+  completed
+  cancelled
 }
 
 enum NotificationType {
@@ -33,15 +33,15 @@ enum NotificationType {
   won
   lot_starting
   lot_ending
+  lot_extended
+  lot_withdrawn
   deal_update
   system
 }
 
-enum SellRequestStatus {
-  new
-  in_review
-  accepted
-  rejected
+enum MediaKind {
+  photo
+  video
 }
 
 model User {
@@ -54,10 +54,11 @@ model User {
   fullName    String?   @map("full_name")
   phone       String?
   email       String?
-  city        String?
   contactsFilledAt DateTime? @map("contacts_filled_at") @db.Timestamptz()
   blockedUntil DateTime? @map("blocked_until") @db.Timestamptz()
   blockReason String?   @map("block_reason")
+  /** Разреженные переопределения DEFAULT_NOTIFICATION_PREFS из shared */
+  notificationPrefs Json @default("{}") @map("notification_prefs")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   bids          Bid[]
@@ -65,7 +66,6 @@ model User {
   favorites     Favorite[]
   notifications Notification[]
   pushSubs      PushSubscription[]
-  sellRequests  SellRequest[]
   wonDeals      Deal[]   @relation("winner")
   managedDeals  Deal[]   @relation("manager")
 
@@ -100,6 +100,7 @@ model Lot {
   startPrice   BigInt  @map("start_price")
   reservePrice BigInt  @map("reserve_price")
   bidStep      BigInt? @map("bid_step") // NULL → settings.default_bid_step
+  feeRate      Decimal? @map("fee_rate") @db.Decimal(6, 4) // NULL → settings.fee_rate
   currentPrice BigInt  @map("current_price")
   currentBidId String? @unique @map("current_bid_id") @db.Uuid
   currentBid   Bid?    @relation("currentBid", fields: [currentBidId], references: [id])
@@ -123,7 +124,8 @@ model Lot {
   vin          String?
   description  String  @default("")
   options      Json    @default("[]")
-  autoteka     Json?
+  /** PDF-отчёт Автотеки, загруженный администратором (ключ в MinIO) */
+  autotekaPdfKey String? @map("autoteka_pdf_key")
 
   relistedFromLotId String? @map("relisted_from_lot_id") @db.Uuid
 
@@ -142,9 +144,10 @@ model Lot {
 }
 
 model LotPhoto {
-  id        String   @id @default(uuid()) @db.Uuid
-  lotId     String   @map("lot_id") @db.Uuid
-  lot       Lot      @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid()) @db.Uuid
+  lotId     String    @map("lot_id") @db.Uuid
+  lot       Lot       @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  kind      MediaKind @default(photo)
   objectKey String   @map("object_key")
   /** Внешний URL (сид-данные/Unsplash); если задан — приоритетнее objectKey */
   externalUrl String? @map("external_url")
@@ -187,7 +190,7 @@ model Deal {
   /** Снимок ставки комиссии на момент закрытия торгов */
   feeRate      Decimal    @map("fee_rate") @db.Decimal(6, 4)
   feeAmount    BigInt     @map("fee_amount")
-  status       DealStatus @default(pending)
+  status       DealStatus @default(in_progress)
   note         String     @default("")
   managerId    String?    @map("manager_id") @db.Uuid
   manager      User?      @relation("manager", fields: [managerId], references: [id])
@@ -234,23 +237,6 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
-model SellRequest {
-  id        String            @id @default(uuid()) @db.Uuid
-  userId    String?           @map("user_id") @db.Uuid
-  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  make      String
-  model     String
-  year      Int
-  mileage   Int
-  phone     String
-  comment   String            @default("")
-  photos    Json              @default("[]")
-  status    SellRequestStatus @default(new)
-  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz()
-
-  @@map("sell_requests")
-}
-
 /// Единственная строка id=1 — параметры аукциона
 model Settings {
   id                   Int     @id @default(1)
@@ -261,6 +247,8 @@ model Settings {
   antisnipeExtensionSec Int    @default(120) @map("antisnipe_extension_sec")
   managerContacts      Json    @default("{}") @map("manager_contacts")
   notificationToggles  Json    @default("{}") @map("notification_toggles")
+  telegramBotToken     String  @default("") @map("telegram_bot_token")
+  telegramChannelId    String  @default("") @map("telegram_channel_id")
 
   @@map("settings")
 }

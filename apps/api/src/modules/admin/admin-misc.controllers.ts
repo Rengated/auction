@@ -14,12 +14,13 @@ import { IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, IsInt, Min }
 import { Roles } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { photoToDto } from '../lots/lot.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
 
 function dealToDto(d: {
   id: string;
   lot: { id: string; make: string; model: string; photos: Parameters<typeof photoToDto>[0][] };
-  winner: { id: string; fullName: string | null; displayName: string; phone: string | null; email: string | null; city: string | null };
+  winner: { id: string; fullName: string | null; displayName: string; phone: string | null; email: string | null };
   amount: bigint;
   feeRate: Prisma.Decimal;
   feeAmount: bigint;
@@ -38,7 +39,6 @@ function dealToDto(d: {
       name: d.winner.fullName || d.winner.displayName,
       phone: d.winner.phone,
       email: d.winner.email,
-      city: d.winner.city,
     },
     amount: Number(d.amount),
     feeRate: Number(d.feeRate),
@@ -56,14 +56,17 @@ const DEAL_INCLUDE = {
 } as const;
 
 class DealPatchDto {
-  @IsOptional() @IsIn(['pending', 'contract', 'closed']) status?: DealStatus;
+  @IsOptional() @IsIn(['in_progress', 'completed', 'cancelled']) status?: DealStatus;
   @IsOptional() @IsString() note?: string;
 }
 
 @Roles('manager', 'admin')
 @Controller('admin/deals')
 export class AdminDealsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   @Get()
   async list() {
@@ -80,15 +83,25 @@ export class AdminDealsController {
 
   @Patch(':id')
   async patch(@Param('id', ParseUUIDPipe) id: string, @Body() dto: DealPatchDto) {
+    const before = await this.prisma.deal.findUnique({ where: { id }, select: { status: true } });
+    if (!before) throw new NotFoundException();
     const deal = await this.prisma.deal.update({
       where: { id },
       data: {
         status: dto.status,
         note: dto.note,
-        closedAt: dto.status === 'closed' ? new Date() : undefined,
+        closedAt: dto.status === 'completed' ? new Date() : dto.status === 'in_progress' ? null : undefined,
       },
       include: DEAL_INCLUDE,
     });
+    if (dto.status && dto.status !== before.status) {
+      await this.notifications.notify(deal.winnerUserId, 'deal_update', {
+        lotId: deal.lot.id,
+        lotTitle: `${deal.lot.make} ${deal.lot.model}`,
+        dealId: deal.id,
+        status: deal.status,
+      });
+    }
     return dealToDto(deal);
   }
 }
@@ -101,7 +114,6 @@ class UserPatchDto {
   @IsOptional() @IsString() fullName?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() email?: string;
-  @IsOptional() @IsString() city?: string;
   @IsOptional() @IsBoolean() verified?: boolean;
 }
 
@@ -133,7 +145,6 @@ export class AdminUsersController {
       name: u.fullName || u.displayName,
       phone: u.phone,
       email: u.email,
-      city: u.city,
       role: u.role,
       verified: Boolean(u.contactsFilledAt),
       blockedUntil: u.blockedUntil && u.blockedUntil > now ? u.blockedUntil.toISOString() : null,
@@ -164,7 +175,6 @@ export class AdminUsersController {
         fullName: dto.fullName,
         phone: dto.phone,
         email: dto.email,
-        city: dto.city,
         contactsFilledAt: dto.verified === undefined ? undefined : dto.verified ? new Date() : null,
       },
     });
@@ -180,6 +190,8 @@ class SettingsPutDto {
   @IsOptional() @IsInt() @Min(5) antisnipeExtensionSec?: number;
   @IsOptional() @IsObject() managerContacts?: Record<string, unknown>;
   @IsOptional() @IsObject() notificationToggles?: Record<string, unknown>;
+  @IsOptional() @IsString() telegramBotToken?: string;
+  @IsOptional() @IsString() telegramChannelId?: string;
 }
 
 @Roles('manager', 'admin')
@@ -201,6 +213,8 @@ export class AdminSettingsController {
       antisnipeExtensionSec: s.antisnipeExtensionSec,
       managerContacts: s.managerContacts,
       notificationToggles: s.notificationToggles,
+      telegramBotToken: s.telegramBotToken,
+      telegramChannelId: s.telegramChannelId,
     };
   }
 
@@ -217,6 +231,8 @@ export class AdminSettingsController {
         antisnipeExtensionSec: dto.antisnipeExtensionSec,
         managerContacts: dto.managerContacts as Prisma.InputJsonObject | undefined,
         notificationToggles: dto.notificationToggles as Prisma.InputJsonObject | undefined,
+        telegramBotToken: dto.telegramBotToken,
+        telegramChannelId: dto.telegramChannelId,
       },
     });
     return this.get();
@@ -303,16 +319,5 @@ export class AdminDashboardController {
       activity,
       serverNow: now.toISOString(),
     };
-  }
-}
-
-@Roles('manager', 'admin')
-@Controller('admin/sell-requests')
-export class AdminSellRequestsController {
-  constructor(private readonly prisma: PrismaService) {}
-
-  @Get()
-  list() {
-    return this.prisma.sellRequest.findMany({ orderBy: { createdAt: 'desc' } });
   }
 }
