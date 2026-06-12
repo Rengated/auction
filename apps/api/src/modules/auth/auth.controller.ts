@@ -36,7 +36,8 @@ export class AuthController {
   @Get('yandex')
   startOauth(@Query('target') target: string | undefined, @Res() res: Response) {
     if (!this.yandex.configured) {
-      if (this.yandex.devFake) return res.redirect(`/auth/dev?target=${target ?? 'web'}`);
+      // относительный редирект: в проде API живёт за префиксом /api
+      if (this.yandex.devFake) return res.redirect(`dev?target=${target ?? 'web'}`);
       throw new BadRequestException('Yandex OAuth не сконфигурирован');
     }
     const nonce = randomBytes(16).toString('hex');
@@ -80,7 +81,7 @@ export class AuthController {
     const rows = users
       .map(
         (u) =>
-          `<li><a href="/auth/dev/login?as=${encodeURIComponent(u.yandexId)}&target=${target ?? 'web'}">` +
+          `<li><a href="dev/login?as=${encodeURIComponent(u.yandexId)}&target=${target ?? 'web'}">` +
           `${u.displayName} <small>(${u.yandexId}, ${u.role})</small></a></li>`,
       )
       .join('\n');
