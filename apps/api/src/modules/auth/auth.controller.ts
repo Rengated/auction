@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Header,
@@ -9,6 +10,7 @@ import {
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { randomBytes } from 'crypto';
 import type { Request, Response } from 'express';
 import { mergeNotificationPrefs, type MeDto } from '@hermes/shared';
@@ -16,6 +18,11 @@ import { CurrentUser, Public, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { YandexService } from './yandex.service';
+
+class LoginDto {
+  @IsString() @IsNotEmpty() username!: string;
+  @IsString() @IsNotEmpty() password!: string;
+}
 
 function clientOrigin(target: string | undefined): string {
   return target === 'admin'
@@ -77,11 +84,15 @@ export class AuthController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   async devPage(@Query('target') target: string | undefined) {
     if (!this.yandex.devFake) throw new BadRequestException('Dev-вход выключен');
-    const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'asc' }, take: 20 });
+    const users = await this.prisma.user.findMany({
+      where: { yandexId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+      take: 20,
+    });
     const rows = users
       .map(
         (u) =>
-          `<li><a href="dev/login?as=${encodeURIComponent(u.yandexId)}&target=${target ?? 'web'}">` +
+          `<li><a href="dev/login?as=${encodeURIComponent(u.yandexId!)}&target=${target ?? 'web'}">` +
           `${u.displayName} <small>(${u.yandexId}, ${u.role})</small></a></li>`,
       )
       .join('\n');
@@ -121,6 +132,15 @@ export class AuthController {
     return res.json({ ok: true });
   }
 
+  /** Вход персонала (admin/manager) по логину и паролю. */
+  @Public()
+  @Post('login')
+  async login(@Body() dto: LoginDto, @Req() req: Request, @Res() res: Response) {
+    const user = await this.auth.verifyPassword(dto.username, dto.password);
+    await this.auth.issueSession(user, res, req.headers['user-agent']);
+    return res.json({ ok: true });
+  }
+
   @Get('me')
   async me(@CurrentUser() user: AuthUser): Promise<MeDto> {
     const u = await this.prisma.user.findUniqueOrThrow({ where: { id: user!.id } });
@@ -128,6 +148,7 @@ export class AuthController {
       id: u.id,
       role: u.role,
       displayName: u.displayName,
+      username: u.username,
       avatarUrl: u.avatarUrl,
       contactsFilled: Boolean(u.contactsFilledAt),
       contacts: { fullName: u.fullName, phone: u.phone, email: u.email },

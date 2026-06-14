@@ -36,14 +36,16 @@ npx web-push generate-vapid-keys   # → VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
 nano .env              # DOMAIN, ACME_EMAIL, секреты, ключи Яндекса
 ```
 
-## 3. Яндекс OAuth
+## 3. Яндекс OAuth (вход покупателей)
 
 1. https://oauth.yandex.ru → «Создать приложение», платформа «Веб-сервисы».
-2. Redirect URI (оба):
+2. Redirect URI (один, для клиента):
    - `https://auction.example.ru/api/auth/yandex/callback`
-   - `https://admin.auction.example.ru/api/auth/yandex/callback`
 3. Доступы: «Доступ к email», «Доступ к аватару», «Доступ к имени/фамилии».
 4. ClientID/Client secret → в `.env` (`YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET`).
+5. Проверьте, что `API_PUBLIC_URL=https://auction.example.ru/api` в `.env` (redirect_uri должен совпадать).
+
+> Админы/менеджеры входят НЕ через Яндекс, а по логину+паролю (см. §5).
 
 ## 4. Запуск
 
@@ -57,14 +59,15 @@ docker compose -f docker-compose.prod.yml logs -f api   # дождаться "Ne
 
 ## 5. Первый администратор
 
-Роли выдаются из БД: войдите на клиенте через Яндекс (создастся buyer), затем повысьте себя:
+Админы/менеджеры входят в админку по **логину и паролю**. Первого администратора создайте CLI-командой в контейнере api:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec postgres \
-  psql -U hermes -c "UPDATE users SET role='admin' WHERE email='ваш@яндекс-email';"
+docker compose -f docker-compose.prod.yml exec api pnpm exec tsx prisma/create-admin.ts admin '<надёжный-пароль>'
 ```
 
-Дальше роли можно менять в админке (Пользователи). `manager` — доступ в админку без управления ролями.
+(идемпотентно: повторный запуск с тем же логином — меняет пароль). Затем войдите в `https://admin.auction.example.ru` с логином `admin` и этим паролем.
+
+Дальше **новых сотрудников создаёт сам администратор** в админке (раздел «Пользователи» → «Персонал»): задаёт логин, пароль и роль (`manager`/`admin`). Создавать/редактировать персонал может только `admin`; `manager` ведёт торги, но не управляет персоналом.
 
 Демо-данные (6 лотов, тестовые пользователи) при желании: `docker compose -f docker-compose.prod.yml exec api pnpm exec tsx prisma/seed.ts` — **стирает все данные**, только для пустой площадки.
 

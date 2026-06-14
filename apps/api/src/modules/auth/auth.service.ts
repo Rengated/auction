@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import type { Response } from 'express';
 import type { Role, User } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -46,6 +47,20 @@ export class AuthService {
 
   private hash(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  /** Хэш пароля для персонала (admin/manager). */
+  hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, 10);
+  }
+
+  /** Вход персонала по username+паролю. */
+  async verifyPassword(username: string, password: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { username } });
+    if (!user || !user.passwordHash) throw new UnauthorizedException('Неверный логин или пароль');
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) throw new UnauthorizedException('Неверный логин или пароль');
+    return user;
   }
 
   async issueSession(user: User, res: Response, userAgent?: string): Promise<void> {

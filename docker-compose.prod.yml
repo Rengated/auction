@@ -78,6 +78,8 @@ services:
       YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
       YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
       AUTH_DEV_FAKE: ${AUTH_DEV_FAKE:-0}
+      # Публичный адрес API за прокси — для точного redirect_uri Яндекс OAuth
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-https://${DOMAIN}/api}
       WEB_ORIGIN: https://${DOMAIN:?задайте DOMAIN в .env}
       ADMIN_ORIGIN: https://admin.${DOMAIN}
       # Сессия делится между DOMAIN и admin.DOMAIN (OAuth-callback приходит на основной домен)

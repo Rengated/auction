@@ -12,10 +12,17 @@ export class YandexService {
     return process.env.AUTH_DEV_FAKE === '1';
   }
 
+  /** Точный redirect_uri — должен совпадать в authorize и token и в настройках приложения. */
+  callbackUrl(): string {
+    const api = (process.env.API_PUBLIC_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    return `${api}/auth/yandex/callback`;
+  }
+
   authorizeUrl(state: string): string {
     const u = new URL('https://oauth.yandex.ru/authorize');
     u.searchParams.set('response_type', 'code');
     u.searchParams.set('client_id', process.env.YANDEX_CLIENT_ID!);
+    u.searchParams.set('redirect_uri', this.callbackUrl());
     u.searchParams.set('state', state);
     return u.toString();
   }
@@ -29,6 +36,7 @@ export class YandexService {
         code,
         client_id: process.env.YANDEX_CLIENT_ID!,
         client_secret: process.env.YANDEX_CLIENT_SECRET!,
+        redirect_uri: this.callbackUrl(),
       }),
     });
     if (!tokenRes.ok) throw new UnauthorizedException('Yandex token exchange failed');

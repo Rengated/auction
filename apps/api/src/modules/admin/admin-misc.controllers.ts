@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,13 +7,15 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Put,
   Query,
 } from '@nestjs/common';
 import { Prisma, type DealStatus, type Role } from '@prisma/client';
-import { IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, IsInt, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsInt, Min, MinLength } from 'class-validator';
 import { Roles } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
 import { photoToDto } from '../lots/lot.mapper';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
@@ -143,6 +146,8 @@ export class AdminUsersController {
     return users.map((u) => ({
       id: u.id,
       name: u.fullName || u.displayName,
+      username: u.username,
+      isStaff: u.role !== 'buyer',
       phone: u.phone,
       email: u.email,
       role: u.role,
@@ -177,6 +182,54 @@ export class AdminUsersController {
         email: dto.email,
         contactsFilledAt: dto.verified === undefined ? undefined : dto.verified ? new Date() : null,
       },
+    });
+    return { ok: true };
+  }
+}
+
+class CreateStaffDto {
+  @IsString() @IsNotEmpty() username!: string;
+  @IsString() @MinLength(6) password!: string;
+  @IsString() @IsNotEmpty() displayName!: string;
+  @IsIn(['manager', 'admin']) role!: Role;
+}
+
+class SetPasswordDto {
+  @IsString() @MinLength(6) password!: string;
+}
+
+/** Управление персоналом (admin/manager-аккаунты) — только для role=admin. */
+@Roles('admin')
+@Controller('admin/staff')
+export class AdminStaffController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
+  ) {}
+
+  @Post()
+  async create(@Body() dto: CreateStaffDto) {
+    const exists = await this.prisma.user.findUnique({ where: { username: dto.username } });
+    if (exists) throw new BadRequestException('Логин уже занят');
+    const user = await this.prisma.user.create({
+      data: {
+        username: dto.username,
+        passwordHash: await this.auth.hashPassword(dto.password),
+        displayName: dto.displayName,
+        role: dto.role,
+        contactsFilledAt: new Date(),
+      },
+    });
+    return { id: user.id };
+  }
+
+  @Patch(':id/password')
+  async setPassword(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetPasswordDto) {
+    const u = await this.prisma.user.findUnique({ where: { id } });
+    if (!u || u.role === 'buyer') throw new BadRequestException('Не сотрудник');
+    await this.prisma.user.update({
+      where: { id },
+      data: { passwordHash: await this.auth.hashPassword(dto.password) },
     });
     return { ok: true };
   }

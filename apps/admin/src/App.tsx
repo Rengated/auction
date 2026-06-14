@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import './styles/admin.css';
-import { API_ORIGIN } from './lib/api';
-import { logout, queryClient, useAdminLots, useMe } from './lib/queries';
+import { logout, queryClient, useAdminLots, useLogin, useMe } from './lib/queries';
 import { getSocket } from './lib/ws';
 import { AI, HermesH } from './components/icons';
 import { DashboardPage } from './pages/dashboard';
@@ -38,21 +37,70 @@ function Login({ denied }: { denied?: boolean }) {
             </button>
           </>
         ) : (
-          <>
-            <div style={{ font: '500 13.5px/1.5 var(--ui)', color: 'var(--dim)', marginBottom: 18 }}>
-              Вход для менеджеров салона — через Яндекс ID.
-            </div>
-            <button
-              className="btn acc"
-              style={{ width: '100%', justifyContent: 'center', padding: 14 }}
-              onClick={() => (location.href = `${API_ORIGIN}/auth/yandex?target=admin`)}
-            >
-              Войти через Яндекс ID
-            </button>
-          </>
+          <LoginForm />
         )}
       </div>
     </div>
+  );
+}
+
+function LoginForm() {
+  const login = useLogin();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (login.isPending) return;
+    setError('');
+    login.mutate(
+      { username: username.trim(), password },
+      {
+        onSuccess: () => location.reload(),
+        onError: (err) => setError(err.message || 'Не удалось войти'),
+      },
+    );
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <div style={{ font: '700 16px/1.3 var(--ui)', marginBottom: 8 }}>Вход для сотрудников</div>
+      <div style={{ font: '500 13.5px/1.5 var(--ui)', color: 'var(--dim)', marginBottom: 18 }}>
+        Войдите по логину и паролю, выданным администратором.
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <label className="fld-l">Логин</label>
+        <input
+          className="in"
+          autoFocus
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+      </div>
+      <div style={{ marginBottom: 18 }}>
+        <label className="fld-l">Пароль</label>
+        <input
+          className="in"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      {error && (
+        <div style={{ font: '500 13px/1.4 var(--ui)', color: 'var(--live)', marginBottom: 14 }}>{error}</div>
+      )}
+      <button
+        type="submit"
+        className="btn acc"
+        disabled={login.isPending || !username.trim() || !password}
+        style={{ width: '100%', justifyContent: 'center', padding: 14 }}
+      >
+        {login.isPending ? 'Вход…' : 'Войти'}
+      </button>
+    </form>
   );
 }
 

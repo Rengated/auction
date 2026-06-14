@@ -98,6 +98,7 @@ export interface MeDto {
   id: string;
   role: Role;
   displayName: string;
+  username: string | null;
   avatarUrl: string | null;
   contactsFilled: boolean;
   contacts: {

@@ -71,6 +71,8 @@ export interface AdminDeal {
 export interface AdminUser {
   id: string;
   name: string;
+  username: string | null;
+  isStaff: boolean;
   phone: string | null;
   email: string | null;
   role: 'buyer' | 'manager' | 'admin';
@@ -345,6 +347,30 @@ export function useSaveSettings() {
   return useMutation<AdminSettings, ApiError, Partial<AdminSettings>>({
     mutationFn: (data) => putJson('/admin/settings', data),
     onSuccess: (s) => qc.setQueryData(['settings'], s),
+  });
+}
+
+export function useLogin() {
+  return useMutation<{ ok: true }, ApiError, { username: string; password: string }>({
+    mutationFn: (data) => post('/auth/login', data),
+  });
+}
+
+export function useCreateStaff() {
+  const qc = useQueryClient();
+  return useMutation<
+    { id: string },
+    ApiError,
+    { username: string; password: string; displayName: string; role: 'manager' | 'admin' }
+  >({
+    mutationFn: (data) => post('/admin/staff', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
+export function useSetStaffPassword(id?: string) {
+  return useMutation<{ ok: true }, ApiError, { id?: string; password: string }>({
+    mutationFn: ({ id: argId, password }) => patch(`/admin/staff/${argId ?? id}/password`, { password }),
   });
 }
 
