@@ -38,6 +38,8 @@
     "rxjs": "^7.8.1",
     "sharp": "^0.34.5",
     "socket.io": "^4.8.0",
+    "socks-proxy-agent": "^8.0.5",
+    "undici": "^8.4.1",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

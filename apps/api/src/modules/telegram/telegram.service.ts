@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ProxyAgent, type Dispatcher } from 'undici';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import { fmt } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -10,15 +12,47 @@ export type TgLotEvent = 'published' | 'opened' | 'sold' | 'finished' | 'withdra
  * Броадкаст событий лотов в Telegram-канал через Bot API.
  * Выключен, пока в настройках пустые token/channel. Никогда не бросает —
  * вызывается fire-and-forget строго после коммита, движок не блокирует.
+ *
+ * Если api.telegram.org недоступен напрямую (напр. российский сервер) —
+ * задайте TELEGRAM_PROXY: http(s)://host:port или socks5://host:port
+ * (с логином: scheme://user:pass@host:port).
  */
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
+  /** Диспетчер прокси — собирается один раз из env (null = прямое соединение). */
+  private proxyDispatcher: Dispatcher | null = null;
+  private proxyResolved = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
   ) {}
+
+  /** Ленивая инициализация прокси из TELEGRAM_PROXY по схеме URL. */
+  private getDispatcher(): Dispatcher | undefined {
+    if (this.proxyResolved) return this.proxyDispatcher ?? undefined;
+    this.proxyResolved = true;
+    const url = process.env.TELEGRAM_PROXY?.trim();
+    if (!url) return undefined;
+    try {
+      const scheme = new URL(url).protocol.replace(':', '').toLowerCase();
+      if (scheme.startsWith('socks')) {
+        // SocksProxyAgent совместим с интерфейсом undici Dispatcher
+        this.proxyDispatcher = new SocksProxyAgent(url) as unknown as Dispatcher;
+      } else if (scheme === 'http' || scheme === 'https') {
+        this.proxyDispatcher = new ProxyAgent(url);
+      } else {
+        this.logger.warn(`TELEGRAM_PROXY: неподдерживаемая схема "${scheme}", игнорирую`);
+        return undefined;
+      }
+      this.logger.log(`Telegram через прокси ${scheme}://${new URL(url).host}`);
+      return this.proxyDispatcher ?? undefined;
+    } catch (e) {
+      this.logger.warn(`TELEGRAM_PROXY некорректен (${(e as Error).message}), прямое соединение`);
+      return undefined;
+    }
+  }
 
   async announceLot(event: TgLotEvent, lotId: string, extra?: { finalPrice?: number }): Promise<void> {
     try {
@@ -108,12 +142,15 @@ export class TelegramService {
 
   /** true — доставлено; false/throw — нет (логируется выше). */
   private async api(token: string, method: 'sendMessage' | 'sendPhoto', body: object): Promise<boolean> {
+    const dispatcher = this.getDispatcher();
     const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
-    });
+      // undici fetch принимает dispatcher в опциях (не в типах DOM-fetch)
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
     if (!res.ok) {
       this.logger.warn(`${method} → ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return false;
