@@ -23,6 +23,8 @@ export class YandexService {
     u.searchParams.set('response_type', 'code');
     u.searchParams.set('client_id', process.env.YANDEX_CLIENT_ID!);
     u.searchParams.set('redirect_uri', this.callbackUrl());
+    // Запрашиваем номер телефона для предзаполнения контактов (нужен доступ в приложении)
+    u.searchParams.set('scope', 'login:info login:email login:avatar login:default_phone');
     u.searchParams.set('state', state);
     return u.toString();
   }
@@ -50,14 +52,25 @@ export class YandexService {
       id: string;
       display_name?: string;
       real_name?: string;
+      first_name?: string;
+      last_name?: string;
       login?: string;
       default_email?: string;
       is_avatar_empty?: boolean;
       default_avatar_id?: string;
+      default_phone?: { number?: string } | null;
     };
+    // ФИО для предзаполнения контактов: реальное имя приоритетнее ника
+    const fullName =
+      info.real_name ||
+      [info.first_name, info.last_name].filter(Boolean).join(' ') ||
+      info.display_name ||
+      null;
     return {
       yandexId: info.id,
       displayName: info.display_name || info.real_name || info.login || 'Пользователь',
+      fullName: fullName || null,
+      phone: info.default_phone?.number ?? null,
       avatarUrl:
         info.default_avatar_id && !info.is_avatar_empty
           ? `https://avatars.yandex.net/get-yapic/${info.default_avatar_id}/islands-200`

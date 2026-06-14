@@ -342,6 +342,14 @@ export function usePatchUser() {
   });
 }
 
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: true }, ApiError, string>({
+    mutationFn: (id) => del(`/admin/users/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
 export function useSaveSettings() {
   const qc = useQueryClient();
   return useMutation<AdminSettings, ApiError, Partial<AdminSettings>>({

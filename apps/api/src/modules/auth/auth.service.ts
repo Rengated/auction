@@ -18,6 +18,8 @@ export interface JwtPayload {
 export interface YandexProfile {
   yandexId: string;
   displayName: string;
+  fullName: string | null;
+  phone: string | null;
   avatarUrl: string | null;
   email: string | null;
 }
@@ -30,6 +32,9 @@ export class AuthService {
   ) {}
 
   async upsertFromYandex(profile: YandexProfile): Promise<User> {
+    // При первом входе предзаполняем контакты данными из Яндекса (имя/телефон/email).
+    // contactsFilledAt НЕ ставим — покупатель подтверждает/правит форму сам.
+    // При повторном входе контакты не трогаем (юзер мог их изменить).
     return this.prisma.user.upsert({
       where: { yandexId: profile.yandexId },
       create: {
@@ -37,6 +42,8 @@ export class AuthService {
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
         email: profile.email,
+        fullName: profile.fullName,
+        phone: profile.phone,
       },
       update: {
         displayName: profile.displayName,

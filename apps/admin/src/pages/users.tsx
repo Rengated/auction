@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AI, Ic } from '../components/icons';
 import {
   useCreateStaff,
+  useDeleteUser,
   useMe,
   usePatchUser,
   useSetStaffPassword,
@@ -332,6 +333,12 @@ function StaffPanel() {
 export function UsersPage() {
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
+  const delUser = useDeleteUser();
+  const removeUser = (u: AdminUser) => {
+    if (u.id === me?.id) return;
+    if (!window.confirm(`Удалить пользователя ${u.name}? Действие необратимо.`)) return;
+    delUser.mutate(u.id, { onError: (e) => window.alert(e.message) });
+  };
   const [f, setF] = useState<UsersFilter>('all');
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const { data: users = [] } = useUsers(f);
@@ -415,6 +422,17 @@ export function UsersPage() {
                           {AI.ban}
                         </button>
                         <button className="iconbtn2" title="Карточка" onClick={() => setSelected(u)}>{AI.eye}</button>
+                        {isAdmin && u.id !== me?.id && (
+                          <button
+                            className="iconbtn2"
+                            title="Удалить пользователя"
+                            disabled={delUser.isPending}
+                            onClick={() => removeUser(u)}
+                            style={{ color: 'var(--live)', borderColor: 'color-mix(in srgb, var(--live) 40%, var(--line2))' }}
+                          >
+                            <Ic d={AI.trash} s={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

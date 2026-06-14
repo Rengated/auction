@@ -1,7 +1,10 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -13,7 +16,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, type DealStatus, type Role } from '@prisma/client';
 import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsInt, Min, MinLength } from 'class-validator';
-import { Roles } from '../../common/decorators';
+import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { photoToDto } from '../lots/lot.mapper';
@@ -183,6 +186,27 @@ export class AdminUsersController {
         contactsFilledAt: dto.verified === undefined ? undefined : dto.verified ? new Date() : null,
       },
     });
+    return { ok: true };
+  }
+
+  /** Удаление пользователя — только admin. Запрещено, если есть история торгов
+   * (ставки/сделки) или попытка удалить себя — тогда используйте блокировку. */
+  @Delete(':id')
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthUser) {
+    if (actor!.role !== 'admin') throw new ForbiddenException('Удаление доступно только администратору');
+    if (actor!.id === id) throw new BadRequestException('Нельзя удалить свой аккаунт');
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { _count: { select: { bids: true, wonDeals: true, managedDeals: true } } },
+    });
+    if (!user) throw new NotFoundException();
+    if (user._count.bids > 0 || user._count.wonDeals > 0 || user._count.managedDeals > 0) {
+      throw new ConflictException(
+        'У пользователя есть история торгов или сделки — удаление недоступно, используйте блокировку',
+      );
+    }
+    // favorites/notifications/push/refreshTokens удалятся каскадно (onDelete: Cascade)
+    await this.prisma.user.delete({ where: { id } });
     return { ok: true };
   }
 }
