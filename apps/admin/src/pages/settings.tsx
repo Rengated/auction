@@ -277,7 +277,7 @@ export function SettingsPage() {
                   className="in"
                   value={form.telegramContact}
                   onChange={(e) => up({ telegramContact: e.target.value })}
-                  placeholder="@optimaselect"
+                  placeholder="@example"
                 />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
