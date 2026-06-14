@@ -33,8 +33,10 @@ export class AuthService {
 
   async upsertFromYandex(profile: YandexProfile): Promise<User> {
     // При первом входе предзаполняем контакты данными из Яндекса (имя/телефон/email).
-    // contactsFilledAt НЕ ставим — покупатель подтверждает/правит форму сам.
+    // Если Яндекс дал и имя, и телефон — сразу считаем контакты заполненными
+    // (покупатель может участвовать в торгах без формы; поправит позже в профиле).
     // При повторном входе контакты не трогаем (юзер мог их изменить).
+    const contactsReady = Boolean(profile.fullName && profile.phone);
     return this.prisma.user.upsert({
       where: { yandexId: profile.yandexId },
       create: {
@@ -44,6 +46,7 @@ export class AuthService {
         email: profile.email,
         fullName: profile.fullName,
         phone: profile.phone,
+        contactsFilledAt: contactsReady ? new Date() : null,
       },
       update: {
         displayName: profile.displayName,
