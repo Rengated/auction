@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ProxyAgent, type Dispatcher } from 'undici';
-import { SocksProxyAgent } from 'socks-proxy-agent';
+import * as tls from 'tls';
+import { Agent, ProxyAgent, type Dispatcher } from 'undici';
+import { SocksClient } from 'socks';
 import { fmt } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -36,10 +37,41 @@ export class TelegramService {
     const url = process.env.TELEGRAM_PROXY?.trim();
     if (!url) return undefined;
     try {
-      const scheme = new URL(url).protocol.replace(':', '').toLowerCase();
+      const u = new URL(url);
+      const scheme = u.protocol.replace(':', '').toLowerCase();
       if (scheme.startsWith('socks')) {
-        // SocksProxyAgent совместим с интерфейсом undici Dispatcher
-        this.proxyDispatcher = new SocksProxyAgent(url) as unknown as Dispatcher;
+        // undici Agent с socks-туннелем в connect (SocksProxyAgent несовместим
+        // с нативным fetch — у него нет dispatch()). type 5/4 по схеме.
+        const socksType = scheme === 'socks4' ? 4 : 5;
+        const proxy = {
+          host: u.hostname,
+          port: Number(u.port) || 1080,
+          type: socksType as 4 | 5,
+          ...(u.username ? { userId: decodeURIComponent(u.username) } : {}),
+          ...(u.password ? { password: decodeURIComponent(u.password) } : {}),
+        };
+        this.proxyDispatcher = new Agent({
+          connect: (opts, cb) => {
+            SocksClient.createConnection({
+              proxy,
+              command: 'connect',
+              destination: { host: opts.hostname, port: opts.port ? Number(opts.port) : 443 },
+            })
+              .then(({ socket }) => {
+                socket.resume();
+                if (opts.protocol === 'https:') {
+                  const t = tls.connect(
+                    { socket, servername: opts.hostname, ALPNProtocols: ['http/1.1'] },
+                    () => cb(null, t),
+                  );
+                  t.on('error', (e) => cb(e, null));
+                } else {
+                  cb(null, socket);
+                }
+              })
+              .catch((e) => cb(e as Error, null));
+          },
+        });
       } else if (scheme === 'http' || scheme === 'https') {
         this.proxyDispatcher = new ProxyAgent(url);
       } else {

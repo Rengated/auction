@@ -113,9 +113,9 @@ importers:
       socket.io:
         specifier: ^4.8.0
         version: 4.8.3
-      socks-proxy-agent:
-        specifier: ^8.0.5
-        version: 8.0.5
+      socks:
+        specifier: ^2.8.9
+        version: 2.8.9
       undici:
         specifier: ^6.26.0
         version: 6.26.0
@@ -4429,10 +4429,6 @@ packages:
   socket.io@4.8.3:
     resolution: {integrity: sha512-2Dd78bqzzjE6KPkD5fHZmDAKRNe3J15q+YHDrIsy9WEkqttc7GY+kT9OBLSMaPbQaEd0x1BjcmtMtXkfpc+T5A==}
     engines: {node: '>=10.2.0'}
-
-  socks-proxy-agent@8.0.5:
-    resolution: {integrity: sha512-HehCEsotFqbPW9sJ8WVYB6UbmIMv7kUUORIF2Nncq4VQvBfNBLibW9YZR5dlYCSUhwcD628pRllm7n+E+YTzJw==}
-    engines: {node: '>= 14'}
 
   socks@2.8.9:
     resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
@@ -9917,14 +9913,6 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
-
-  socks-proxy-agent@8.0.5:
-    dependencies:
-      agent-base: 7.1.4
-      debug: 4.4.3
-      socks: 2.8.9
-    transitivePeerDependencies:
-      - supports-color
 
   socks@2.8.9:
     dependencies:
