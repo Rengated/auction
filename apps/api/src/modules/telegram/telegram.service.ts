@@ -40,15 +40,7 @@ export class TelegramService {
       if (scheme.startsWith('socks')) {
         // SocksProxyAgent совместим с интерфейсом undici Dispatcher
         this.proxyDispatcher = new SocksProxyAgent(url) as unknown as Dispatcher;
-      } else if (scheme === 'https') {
-        // HTTPS-прокси через stunnel с самоподписанным сертом: не проверяем серт
-        // ТУННЕЛЯ (соединение к Telegram внутри остаётся полноценно TLS-защищённым).
-        // Включается флагом TELEGRAM_PROXY_INSECURE=1 (по умолчанию — проверять).
-        const insecure = process.env.TELEGRAM_PROXY_INSECURE === '1';
-        this.proxyDispatcher = new ProxyAgent(
-          insecure ? { uri: url, proxyTls: { rejectUnauthorized: false } } : url,
-        );
-      } else if (scheme === 'http') {
+      } else if (scheme === 'http' || scheme === 'https') {
         this.proxyDispatcher = new ProxyAgent(url);
       } else {
         this.logger.warn(`TELEGRAM_PROXY: неподдерживаемая схема "${scheme}", игнорирую`);
