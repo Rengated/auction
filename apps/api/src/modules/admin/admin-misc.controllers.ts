@@ -192,6 +192,8 @@ class SettingsPutDto {
   @IsOptional() @IsObject() notificationToggles?: Record<string, unknown>;
   @IsOptional() @IsString() telegramBotToken?: string;
   @IsOptional() @IsString() telegramChannelId?: string;
+  @IsOptional() @IsString() telegramContact?: string;
+  @IsOptional() @IsString() telegramFooter?: string;
 }
 
 @Roles('manager', 'admin')
@@ -215,6 +217,8 @@ export class AdminSettingsController {
       notificationToggles: s.notificationToggles,
       telegramBotToken: s.telegramBotToken,
       telegramChannelId: s.telegramChannelId,
+      telegramContact: s.telegramContact,
+      telegramFooter: s.telegramFooter,
     };
   }
 
@@ -233,6 +237,8 @@ export class AdminSettingsController {
         notificationToggles: dto.notificationToggles as Prisma.InputJsonObject | undefined,
         telegramBotToken: dto.telegramBotToken,
         telegramChannelId: dto.telegramChannelId,
+        telegramContact: dto.telegramContact,
+        telegramFooter: dto.telegramFooter,
       },
     });
     return this.get();

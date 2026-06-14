@@ -1,7 +1,7 @@
 /* Профиль: мобильные экраны (ScreenProfile / ScreenProfilePage) и веб (сайдбар + панели) из дизайна. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { NOTIFICATION_EVENTS, rub, type MeDto, type NotificationDto, type NotificationEvent } from '@hermes/shared';
+import { NOTIFICATION_EVENTS, rub, type DealStatus, type MeDto, type NotificationDto, type NotificationEvent } from '@hermes/shared';
 import {
   useConfig,
   useMe,
@@ -37,10 +37,20 @@ const NOTIF_META: Record<NotificationDto['type'], { title: string; dot: string }
   system: { title: 'Уведомление', dot: 'var(--text-faint)' },
 };
 
-const notifTitle = (n: NotificationDto): string =>
-  n.type === 'lot_starting' && n.payload.phase === 'soon'
-    ? 'Скоро старт торгов'
-    : (NOTIF_META[n.type] ?? NOTIF_META.system).title;
+const DEAL_TITLES: Record<DealStatus, string> = {
+  in_progress: 'Сделка на оформлении',
+  completed: 'Сделка завершена',
+  cancelled: 'Сделка отменена',
+};
+
+const notifTitle = (n: NotificationDto): string => {
+  if (n.type === 'lot_starting' && n.payload.phase === 'soon') return 'Скоро старт торгов';
+  if (n.type === 'deal_update') {
+    const status = n.payload.status as DealStatus | undefined;
+    if (status && DEAL_TITLES[status]) return DEAL_TITLES[status];
+  }
+  return (NOTIF_META[n.type] ?? NOTIF_META.system).title;
+};
 
 const notifSub = (n: NotificationDto): string =>
   String(n.payload.lotTitle ?? '') + (n.payload.newAmount ? ` · теперь ${rub(Number(n.payload.newAmount))}` : '');
@@ -312,27 +322,50 @@ function NotifList({ mobile }: { mobile: boolean }) {
   );
 }
 
+/** Статус сделки выигранного лота → [подпись, цвет]. */
+const DEAL_STATUS_META: Record<DealStatus, [string, string]> = {
+  in_progress: ['На оформлении · менеджер свяжется', 'var(--gold)'],
+  completed: ['Сделка завершена', 'var(--ok)'],
+  cancelled: ['Сделка отменена', 'var(--text-faint)'],
+};
+
 /** Карточки выигранных лотов (общие). */
 function WonList({ mobile }: { mobile: boolean }) {
   const { data: won = [] } = useMyBids('won');
+  const navigate = useNavigate();
   if (won.length === 0) {
     return <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Пока нет выигранных лотов</div>;
   }
   const status = (row: MyBidRow): [string, string] =>
-    row.dealId ? ['Договор готов', 'var(--ok)'] : ['Менеджер свяжется', 'var(--text-faint)'];
+    DEAL_STATUS_META[row.dealStatus ?? 'in_progress'];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {won.map((row) => {
         const [label, color] = status(row);
         return (
-          <div key={row.lot.id} className="card" style={{ padding: mobile ? 12 : 14, display: 'flex', gap: mobile ? 13 : 15, alignItems: 'center' }}>
-            <Photo src={row.lot.photos[0]?.card ?? null} h={mobile ? 62 : 70} glyph={row.lot.make[0]} style={{ width: mobile ? 84 : 100, flex: 'none', borderRadius: 9 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: mobile ? 15 : 16, fontWeight: 600 }}>{row.lot.make} {row.lot.model}</div>
-              <div className="num" style={{ fontSize: mobile ? 13 : 14, color: 'var(--text-dim)', marginTop: 5 }}>{rub(row.myLastBid)}</div>
-              <div className="num" style={{ fontSize: mobile ? 11 : 12, marginTop: mobile ? 6 : 7, color, fontWeight: 600 }}>{label}</div>
+          <div key={row.lot.id} className="card" style={{ padding: mobile ? 12 : 14 }}>
+            <div style={{ display: 'flex', gap: mobile ? 13 : 15, alignItems: 'center' }}>
+              <Photo src={row.lot.photos[0]?.card ?? null} h={mobile ? 62 : 70} glyph={row.lot.make[0]} style={{ width: mobile ? 84 : 100, flex: 'none', borderRadius: 9 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: mobile ? 15 : 16, fontWeight: 600 }}>{row.lot.make} {row.lot.model}</div>
+                <div className="num" style={{ fontSize: mobile ? 13 : 14, color: 'var(--text-dim)', marginTop: 5 }}>{rub(row.myLastBid)}</div>
+                {row.feeAmount != null && (
+                  <div className="num" style={{ fontSize: mobile ? 11 : 11.5, color: 'var(--text-dim)', marginTop: 4 }}>
+                    комиссия {rub(row.feeAmount)} · к оплате {rub(row.amountDue ?? 0)}
+                  </div>
+                )}
+                <div className="num" style={{ fontSize: mobile ? 11 : 12, marginTop: mobile ? 6 : 7, color, fontWeight: 600 }}>{label}</div>
+              </div>
+              <span style={{ color: 'var(--text-faint)', transform: 'rotate(180deg)', width: 18, height: 18, flex: 'none' }}>{I.back}</span>
             </div>
-            <span style={{ color: 'var(--text-faint)', transform: 'rotate(180deg)', width: 18, height: 18, flex: 'none' }}>{I.back}</span>
+            {row.dealNote && (
+              <div style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 10, lineHeight: 1.5 }}>
+                Менеджер: {row.dealNote}
+              </div>
+            )}
+            <button className={mobile ? 'btn' : 'wbtn'} onClick={() => navigate('/profile/manager')} style={{ marginTop: 11 }}>
+              Связаться с менеджером
+            </button>
           </div>
         );
       })}

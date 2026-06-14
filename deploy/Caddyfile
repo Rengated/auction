@@ -19,6 +19,8 @@
 
 	# Медиа из MinIO: /s3/lots/<key> → бакет lots
 	handle_path /s3/* {
+		# Медиа неизменяемы (ключи с uuid) — кэшируем надолго
+		header Cache-Control "public, max-age=2592000, immutable"
 		reverse_proxy minio:9000
 	}
 
@@ -47,6 +49,8 @@ admin.{$DOMAIN} {
 	}
 
 	handle_path /s3/* {
+		# Медиа неизменяемы (ключи с uuid) — кэшируем надолго
+		header Cache-Control "public, max-age=2592000, immutable"
 		reverse_proxy minio:9000
 	}
 

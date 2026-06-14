@@ -51,6 +51,8 @@ export interface LotDto {
   vin: string | null;
   description: string;
   options: string[];
+  /** Адрес осмотра/выдачи (снимок из справочника), если задан */
+  address: string | null;
   /** PDF-отчёт Автотеки, если загружен администратором */
   autotekaPdfUrl: string | null;
   /** Эффективная комиссия: своя у лота либо глобальная из настроек */
@@ -181,6 +183,25 @@ export interface DealDto {
   closedAt: string | null;
 }
 
+/** Строка списка «Мои ставки» — активные/выигранные. Поля сделки только для won. */
+export interface MyBidRow {
+  lot: LotDto;
+  myLastBid: number;
+  isLeading: boolean;
+  /** Для выигранных: id сделки */
+  dealId?: string;
+  /** Статус сделки (только won) */
+  dealStatus?: DealStatus;
+  /** Снимок комиссии из сделки */
+  feeRate?: number;
+  feeAmount?: number;
+  /** amount + feeAmount */
+  amountDue?: number;
+  /** Заметка менеджера (только непустая) */
+  dealNote?: string;
+  closedAt?: string | null;
+}
+
 export interface AuctionSettingsDto {
   feeRate: number;
   defaultBidStep: number;
@@ -205,4 +226,13 @@ export interface PublicConfigDto {
   defaultBidStep: number;
   vapidPublicKey: string | null;
   managerContacts: ManagerContacts;
+}
+
+/** Точка осмотра/выдачи авто — справочник адресов в админке. */
+export interface AddressDto {
+  id: string;
+  label: string;
+  fullAddress: string;
+  city: string | null;
+  sortOrder: number;
 }

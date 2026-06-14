@@ -29,8 +29,15 @@ function pushPayload(type: NotificationType, payload: Record<string, unknown>): 
       return { title: 'Торги продлены', body: `${lotTitle} — финал отодвинут`, url, tag: `ext-${payload.lotId}` };
     case 'lot_withdrawn':
       return { title: 'Лот снят с торгов', body: lotTitle, url, tag: `wd-${payload.lotId}` };
-    case 'deal_update':
-      return { title: 'Статус сделки обновлён', body: lotTitle, url: '/my-bids', tag: `deal-${payload.dealId}` };
+    case 'deal_update': {
+      const map: Record<string, { title: string; body: string }> = {
+        in_progress: { title: 'Сделка на оформлении', body: `${lotTitle} — менеджер свяжется с вами` },
+        completed: { title: 'Сделка завершена', body: `${lotTitle} — поздравляем с покупкой` },
+        cancelled: { title: 'Сделка отменена', body: lotTitle },
+      };
+      const m = map[String(payload.status)] ?? { title: 'Статус сделки обновлён', body: lotTitle };
+      return { ...m, url: '/profile/won', tag: `deal-${payload.dealId}` };
+    }
     default:
       return null;
   }

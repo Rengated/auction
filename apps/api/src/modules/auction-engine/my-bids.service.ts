@@ -1,16 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { LotDto } from '@hermes/shared';
+import type { MyBidRow } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { lotToDto } from '../lots/lot.mapper';
 
-export interface MyBidRow {
-  lot: LotDto;
-  myLastBid: number;
-  isLeading: boolean;
-  /** Для выигранных: id сделки */
-  dealId?: string;
-}
+export type { MyBidRow } from '@hermes/shared';
 
 @Injectable()
 export class MyBidsService {
@@ -33,6 +27,12 @@ export class MyBidsService {
         myLastBid: Number(d.amount),
         isLeading: true,
         dealId: d.id,
+        dealStatus: d.status,
+        feeRate: Number(d.feeRate),
+        feeAmount: Number(d.feeAmount),
+        amountDue: Number(d.amount) + Number(d.feeAmount),
+        dealNote: d.note?.trim() ? d.note : undefined,
+        closedAt: d.closedAt?.toISOString() ?? null,
       }));
     }
 

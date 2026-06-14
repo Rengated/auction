@@ -24,6 +24,7 @@
   --ok:        #46c47f;
   --win:       #34b06f;
   --win-ink:   #06170d;
+  --gold:      #cf9b4a;
 
   --page-bg: radial-gradient(120% 80% at 50% -8%, #1a1e25 0%, #0d0f13 58%);
 
@@ -51,10 +52,14 @@
   --page-bg: radial-gradient(120% 80% at 50% -8%, #ffffff 0%, #edeff1 62%);
   --shadow: 0 22px 48px -26px rgba(20,24,30,0.26);
   --shadow-up: 0 -12px 30px -20px rgba(20,24,30,0.10);
+  --gold:      #b6843a;
 }
 
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; }
+
+a { -webkit-tap-highlight-color: transparent; }
+a, a:link, a:visited { color: inherit; }
 
 body {
   background: var(--page-bg);

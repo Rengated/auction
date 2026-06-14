@@ -37,6 +37,35 @@ const lotNo = (lot: LotDto) => `лот #${lot.id.slice(0, 6).toUpperCase()}`;
 const winLabel = (iso: string) =>
   new Date(iso).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+/** Карточка адреса осмотра/выдачи — общая для мобайла и веба. */
+function AddressCard({ address }: { address: string }) {
+  return (
+    <div className="card" style={{ padding: '12px 14px', display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+      <span style={{ width: 17, height: 17, color: 'var(--accent)', flex: 'none', marginTop: 1 }}>{I.pin}</span>
+      <div style={{ minWidth: 0 }}>
+        <div className="eyebrow" style={{ marginBottom: 5 }}>адрес осмотра</div>
+        <div style={{ fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>{address}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Поделиться лотом: системный шит или копирование ссылки. Возвращает true при копировании. */
+async function shareLot(lot: LotDto): Promise<boolean> {
+  const url = `${location.origin}/lots/${lot.id}`;
+  const title = `${lot.make} ${lot.model}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url });
+    } catch {
+      /* отмена пользователем — игнорируем */
+    }
+    return false;
+  }
+  await navigator.clipboard?.writeText(url);
+  return true;
+}
+
 const specRowsOf = (lot: LotDto): Array<[string, string]> => [
   ['Двигатель', `${lot.engine} · ${lot.power} л.с.`],
   ['Топливо', lot.fuel],
@@ -164,15 +193,28 @@ function ScreenLot({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
   const now = useNow();
   const fav = useToggleFavorite();
   const [tab, setTab] = useState('Обзор');
+  const [copied, setCopied] = useState(false);
   const tabs = ['Обзор', 'Характеристики', 'Описание'];
   const live = STATUS_META[displayStatus(lot.status, lot.endsAt, now)].group === 'live';
+
+  const onShare = async () => {
+    if (await shareLot(lot)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="screen screen-enter">
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', padding: '14px 16px 0' }}>
         <button className="iconbtn" onClick={() => navigate(-1)}>{I.back}</button>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="iconbtn">{I.share}</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {copied && (
+            <span className="num" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text)', background: 'color-mix(in srgb, var(--bg) 70%, transparent)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 9px', backdropFilter: 'blur(6px)' }}>
+              Ссылка скопирована
+            </span>
+          )}
+          <button className="iconbtn" onClick={onShare}>{I.share}</button>
           <button className="iconbtn" style={{ color: lot.isFavorite ? 'var(--accent)' : 'var(--text)' }}
             onClick={() => fav.mutate({ lotId: lot.id, on: !lot.isFavorite })}>{I.bookmark}</button>
         </div>
@@ -223,6 +265,7 @@ function ScreenLot({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
                 <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>Окно торгов</span>
                 <span className="num" style={{ fontSize: 12.5, fontWeight: 600 }}>{winLabel(lot.startsAt)} → {winLabel(lot.endsAt)}</span>
               </div>
+              {lot.address && <AddressCard address={lot.address} />}
             </div>
           )}
           {tab === 'Характеристики' && (
@@ -397,6 +440,7 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
                     <SpecTile icon={I.shield} k="проверка" v={lot.autotekaPdfUrl ? 'пройдена' : 'готовится'} />
                   </div>
                   <div style={{ marginTop: 14 }}><AutotekaReport lot={lot} /></div>
+                  {lot.address && <div style={{ marginTop: 14 }}><AddressCard address={lot.address} /></div>}
                 </div>
               )}
               {tab === 'Характеристики' && (

@@ -74,6 +74,7 @@ export function lotToDto(
     vin: lot.vin,
     description: lot.description,
     options: (lot.options as string[]) ?? [],
+    address: lot.addressText ?? null,
     autotekaPdfUrl: autotekaPdfUrl(lot),
     feeRate: lot.feeRate != null ? Number(lot.feeRate) : defaults.feeRate,
     isFavorite: extra?.isFavorite,

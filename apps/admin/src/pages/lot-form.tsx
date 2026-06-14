@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fmt } from '@hermes/shared';
 import {
+  useAddresses,
   useAdminLot,
   useCreateLot,
   useDeleteAutoteka,
@@ -29,6 +30,8 @@ interface FormState {
   drive: string;
   color: string;
   description: string;
+  options: string;
+  addressId: string;
   startPrice: string;
   reservePrice: string;
   bidStep: string;
@@ -39,7 +42,7 @@ interface FormState {
 
 const EMPTY: FormState = {
   make: '', model: '', year: '', mileage: '', vin: '', body: '', engine: '', power: '',
-  fuel: '', transmission: '', drive: '', color: '', description: '',
+  fuel: '', transmission: '', drive: '', color: '', description: '', options: '', addressId: '',
   startPrice: '', reservePrice: '', bidStep: '', feeRate: '', startsAt: '', endsAt: '',
 };
 
@@ -69,6 +72,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
   const pdfRef = useRef<HTMLInputElement>(null);
 
   const { data: settings } = useSettings();
+  const { data: addresses = [] } = useAddresses();
   const createM = useCreateLot();
   const updateM = useUpdateLot(id ?? '');
   const relistM = useRelistLot(id ?? '');
@@ -94,6 +98,8 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       drive: lot.drive,
       color: lot.color,
       description: lot.description,
+      options: lot.options.join(', '),
+      addressId: lot.addressId ?? '',
       startPrice: fmt(lot.startPrice),
       reservePrice: fmt(lot.reservePrice),
       bidStep: lot.lotBidStep != null ? fmt(lot.lotBidStep) : '',
@@ -105,7 +111,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
     setLoaded(true);
   }, [lot, loaded, relist]);
 
-  const set = (k: keyof FormState) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (k: keyof FormState) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = (pub: boolean) => {
@@ -146,6 +152,8 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       color: form.color.trim(),
       vin: form.vin.trim() || undefined,
       description: form.description.trim() || undefined,
+      options: form.options.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
+      addressId: form.addressId || null,
       startPrice,
       reservePrice,
       bidStep: form.bidStep.trim() ? num(form.bidStep) : null,
@@ -297,6 +305,11 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
                 <div><label className="fld-l">Привод</label><input className="in" value={form.drive} onChange={set('drive')} placeholder="Полный" /></div>
                 <div><label className="fld-l">Цвет</label><input className="in" value={form.color} onChange={set('color')} placeholder="Чёрный" /></div>
                 <div className="span2"><label className="fld-l">Описание</label><textarea className="in" value={form.description} onChange={set('description')} placeholder="Состояние, история обслуживания, комплектация, особенности…"></textarea></div>
+                <div className="span2">
+                  <label className="fld-l">Комплектация</label>
+                  <textarea className="in" value={form.options} onChange={set('options')} placeholder="Панорама, Кожа, Камеры 360°"></textarea>
+                  <div className="hint">через запятую: Панорама, Кожа, Камеры 360°</div>
+                </div>
               </div>
             </div>
           </div>
@@ -385,6 +398,17 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
               <div>
                 <label className="fld-l">Окончание торгов</label>
                 <input className="in num" type="datetime-local" value={form.endsAt} onChange={set('endsAt')} />
+              </div>
+              <div style={{ height: 1, background: 'var(--line)' }}></div>
+              <div>
+                <label className="fld-l">Адрес осмотра / выдачи</label>
+                <select className="in" value={form.addressId} onChange={set('addressId')}>
+                  <option value="">— без адреса —</option>
+                  {addresses.map((a) => (
+                    <option key={a.id} value={a.id}>{a.label} — {a.city ?? a.fullAddress}</option>
+                  ))}
+                </select>
+                <div className="hint">управление адресами — в Параметрах</div>
               </div>
             </div>
           </div>

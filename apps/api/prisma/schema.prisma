@@ -127,6 +127,11 @@ model Lot {
   /** PDF-отчёт Автотеки, загруженный администратором (ключ в MinIO) */
   autotekaPdfKey String? @map("autoteka_pdf_key")
 
+  /** Адрес осмотра/выдачи: FK в справочник + денормализованный снимок «label · fullAddress» */
+  addressId   String?  @map("address_id") @db.Uuid
+  address     Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  addressText String?  @map("address_text")
+
   relistedFromLotId String? @map("relisted_from_lot_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
@@ -249,8 +254,26 @@ model Settings {
   notificationToggles  Json    @default("{}") @map("notification_toggles")
   telegramBotToken     String  @default("") @map("telegram_bot_token")
   telegramChannelId    String  @default("") @map("telegram_channel_id")
+  /** Контакт-подпись под TG-постами (например @optimaselect) */
+  telegramContact      String  @default("") @map("telegram_contact")
+  /** Настраиваемая строка-подпись под TG-постами */
+  telegramFooter       String  @default("Ставка принимается от зарегистрированных участников") @map("telegram_footer")
 
   @@map("settings")
+}
+
+/// Справочник точек осмотра/выдачи авто
+model Address {
+  id          String   @id @default(uuid()) @db.Uuid
+  label       String
+  fullAddress String   @map("full_address")
+  city        String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  lots Lot[]
+
+  @@map("addresses")
 }
 
 /// Аудит ручных/системных действий над торгами

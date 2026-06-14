@@ -3,6 +3,7 @@ import type {
   BidRowDto,
   LotDto,
   MeDto,
+  MyBidRow,
   NotificationDto,
   NotificationEvent,
   PlaceBidResponse,
@@ -22,12 +23,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-export interface MyBidRow {
-  lot: LotDto;
-  myLastBid: number;
-  isLeading: boolean;
-  dealId?: string;
-}
+export type { MyBidRow } from '@hermes/shared';
 
 export type CatalogFilter = 'all' | 'live' | 'soon' | 'done' | 'fav';
 

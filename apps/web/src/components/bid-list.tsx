@@ -23,7 +23,7 @@ export function BidList({ bids, scroll = false, max = 8 }: { bids: BidRowDto[]; 
     );
   }
   return (
-    <div className="card" style={{ padding: '2px 16px', ...(scroll ? { maxHeight: 256, overflowY: 'auto' } : {}) }}>
+    <div className="card" style={{ padding: '2px 16px', ...(scroll ? { maxHeight: 256, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } : {}) }}>
       {rows.map((r, i) => (
         <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 0', borderBottom: i < rows.length - 1 ? '1px solid var(--line-soft)' : 0 }}>
           <span style={{ width: 30, height: 30, borderRadius: '50%', flex: 'none', background: r.isMine ? 'var(--accent-glow)' : 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 12px/1 var(--num)', color: r.isMine ? 'var(--accent)' : 'var(--text-dim)' }}>

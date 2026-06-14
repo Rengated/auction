@@ -9,6 +9,7 @@ export function Photo({
   style = {},
   glyph = 'ФОТО',
   fit = 'cover',
+  priority = false,
   children,
 }: {
   src?: string | null;
@@ -17,6 +18,7 @@ export function Photo({
   style?: CSSProperties;
   glyph?: string;
   fit?: 'cover' | 'contain';
+  priority?: boolean;
   children?: ReactNode;
 }) {
   const [ok, setOk] = useState(true);
@@ -28,6 +30,9 @@ export function Photo({
           src={src}
           alt=""
           onError={() => setOk(false)}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          {...(priority ? ({ fetchpriority: 'high' } as Record<string, string>) : {})}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: fit, zIndex: 1 }}
         />
       )}
@@ -85,7 +90,7 @@ export function Carousel({
           <span className="cap" style={{ zIndex: 2 }}>{i + 1} / {total}</span>
         </div>
       ) : (
-        <Photo src={cur ? cur[size] : null} h={h} glyph={cur ? glyph : `ФОТО ${i + 1}`} fit="cover" cap={`${i + 1} / ${total}`} style={{ borderRadius: radius }} />
+        <Photo src={cur ? cur[size] : null} h={h} glyph={cur ? glyph : `ФОТО ${i + 1}`} fit="cover" priority cap={`${i + 1} / ${total}`} style={{ borderRadius: radius }} />
       )}
       {slides > 1 && (
         <>

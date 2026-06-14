@@ -29,8 +29,7 @@ export class TelegramService {
 
       const lot = await this.prisma.lot.findUnique({ where: { id: lotId }, include: { photos: true } });
       if (!lot) return;
-      const title = `${lot.make} ${lot.model} ${lot.year}`;
-      const text = this.buildText(event, lot, title, extra);
+      const text = this.buildText(event, lot, s.telegramContact, s.telegramFooter, extra);
       if (!text) return;
 
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
@@ -48,23 +47,63 @@ export class TelegramService {
 
   private buildText(
     event: TgLotEvent,
-    lot: { startPrice: bigint; currentPrice: bigint; startsAt: Date },
-    title: string,
+    lot: {
+      id: string;
+      make: string;
+      model: string;
+      year: number;
+      mileage: number;
+      engine: string;
+      power: number;
+      fuel: string;
+      transmission: string;
+      drive: string;
+      startPrice: bigint;
+      currentPrice: bigint;
+      startsAt: Date;
+      addressText: string | null;
+    },
+    contact: string,
+    footer: string,
     extra?: { finalPrice?: number },
   ): string {
-    const startsAt = lot.startsAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
-    switch (event) {
-      case 'published':
-        return `🚗 ${title} — скоро на торгах\nСтарт: ${startsAt} МСК · от ${fmt(Number(lot.startPrice))} ₽`;
-      case 'opened':
-        return `🔴 Торги начались — ${title}\nТекущая цена: ${fmt(Number(lot.currentPrice))} ₽`;
-      case 'sold':
-        return `✅ Продан — ${title} за ${fmt(extra?.finalPrice ?? Number(lot.currentPrice))} ₽`;
-      case 'finished':
-        return `Торги завершены — ${title}. Резерв не достигнут.`;
-      case 'withdrawn':
-        return `Лот снят с торгов — ${title}`;
+    const webOrigin = (process.env.WEB_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, '');
+    const lotNo = lot.id.slice(0, 6).toUpperCase();
+    const lotUrl = `${webOrigin}/lots/${lot.id}`;
+    const startsAt = lot.startsAt.toLocaleString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Moscow',
+    });
+
+    // Заголовок-плашка по событию
+    const head: Record<TgLotEvent, string> = {
+      published: `🟢 Новый лот · старт ${startsAt} МСК`,
+      opened: `🔴 Торги идут · текущая ${fmt(Number(lot.currentPrice))} ₽`,
+      sold: `✅ Продан за ${fmt(extra?.finalPrice ?? Number(lot.currentPrice))} ₽`,
+      finished: `⚪️ Торги завершены · резерв не достигнут`,
+      withdrawn: `⚪️ Лот снят с торгов`,
+    };
+
+    const lines = [
+      `Лот ${lotNo} 🚘 ${lot.make} ${lot.model}, ${lot.year}`,
+      `✅ Пробег: ${fmt(lot.mileage)} км`,
+      `✅ ${lot.transmission}, ${lot.drive}`,
+      `${lot.fuel}, ${lot.engine}, ${lot.power} л.с.`,
+    ];
+    if (lot.addressText) lines.push(`📍 Авто находится: ${lot.addressText}`);
+    lines.push(`🔗 Фото, отчёт и подробности: ${lotUrl}`);
+    lines.push('');
+    lines.push(head[event]);
+    if (event === 'published') lines.push(`Стартовая цена: ${fmt(Number(lot.startPrice))} ₽`);
+    if (contact.trim()) {
+      lines.push('');
+      lines.push(`Остались вопросы? ${contact.trim()}`);
     }
+    if (footer.trim()) lines.push(footer.trim());
+    return lines.join('\n');
   }
 
   /** true — доставлено; false/throw — нет (логируется выше). */

@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fmt } from '@hermes/shared';
-import { useAdminLots, usePublishLot, type AdminLotsFilter } from '../lib/queries';
+import {
+  useAdminLots,
+  usePublishLot,
+  useUnpublishLot,
+  type AdminLot,
+  type AdminLotsFilter,
+  type LotFormPayload,
+} from '../lib/queries';
 import { AI, Ic, Sb } from '../components/icons';
 
 const TABS: Array<[AdminLotsFilter, string]> = [
@@ -12,13 +19,47 @@ const TABS: Array<[AdminLotsFilter, string]> = [
   ['draft', 'Черновики'],
 ];
 
+/** Полный LotFormPayload из строки таблицы — для PATCH со снятием публикации. */
+function rowToPayload(l: AdminLot, published: boolean): LotFormPayload {
+  return {
+    make: l.make,
+    model: l.model,
+    year: l.year,
+    mileage: l.mileage,
+    engine: l.engine,
+    power: l.power,
+    fuel: l.fuel,
+    transmission: l.transmission,
+    drive: l.drive,
+    body: l.body,
+    color: l.color,
+    vin: l.vin ?? undefined,
+    description: l.description || undefined,
+    options: l.options,
+    addressId: l.addressId,
+    startPrice: l.startPrice,
+    reservePrice: l.reservePrice,
+    bidStep: l.lotBidStep,
+    feeRate: l.lotFeeRate,
+    startsAt: l.startsAt,
+    endsAt: l.endsAt,
+    published,
+  };
+}
+
 export function LotsPage() {
   const navigate = useNavigate();
   const [f, setF] = useState<AdminLotsFilter>('all');
   const { data: lots = [] } = useAdminLots(f);
   const { data: drafts } = useAdminLots('draft');
   const publish = usePublishLot();
+  const unpublish = useUnpublishLot();
   const draftCount = drafts?.length ?? 0;
+
+  const onUnpublish = (l: AdminLot) => {
+    if (!window.confirm('Снять лот с публикации? Он вернётся в черновики.')) return;
+    unpublish.mutate({ id: l.id, payload: rowToPayload(l, false) });
+  };
 
   return (
     <div className="content fade">
@@ -65,6 +106,9 @@ export function LotsPage() {
                   <div className="row-actions">
                     {!l.published && (
                       <button className="btn sm" disabled={publish.isPending} onClick={() => publish.mutate(l.id)}>Опубликовать</button>
+                    )}
+                    {l.published && (l.status === 'upcoming' || l.status === 'draft') && l.bidCount === 0 && (
+                      <button className="btn sm" disabled={unpublish.isPending} onClick={() => onUnpublish(l)}>Снять с публикации</button>
                     )}
                     {l.status === 'live' && (
                       <button className="iconbtn2" title="Контроль торга" onClick={() => navigate(`/auctions/${l.id}`)}>{AI.gavel}</button>

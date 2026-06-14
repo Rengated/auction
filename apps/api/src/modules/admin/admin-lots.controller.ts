@@ -25,6 +25,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -65,6 +66,8 @@ class LotFormDto {
   @IsOptional() @IsInt() @Min(1) bidStep?: number | null;
   /** Комиссия лота как доля (0.015 = 1.5%); null/не задано → глобальная */
   @IsOptional() @IsNumber() @Min(0) @Max(1) feeRate?: number | null;
+  /** Адрес из справочника; null — снять адрес */
+  @IsOptional() @IsUUID() addressId?: string | null;
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
   @IsOptional() @IsBoolean() published?: boolean;
@@ -114,7 +117,7 @@ export class AdminLotsController {
   @Post()
   async create(@Body() dto: LotFormDto) {
     if (dto.published) this.assertFutureDates(dto);
-    const lot = await this.prisma.lot.create({ data: this.toCreateData(dto) });
+    const lot = await this.prisma.lot.create({ data: await this.toCreateData(dto) });
     if (lot.published && lot.status === 'upcoming') {
       await this.scheduleJobs(lot.id);
       void this.telegram.announceLot('published', lot.id);
@@ -130,13 +133,18 @@ export class AdminLotsController {
     // Публикация черновика через сохранение формы — те же проверки дат, что и в publish()
     const publishing = !existing.published && dto.published === true;
     if (publishing && ['draft', 'upcoming'].includes(existing.status)) this.assertFutureDates(dto);
-    // Снятие с публикации до старта без ставок — честный возврат в черновик
+    // Снятие с публикации до старта без ставок — честный возврат в черновик.
+    // Любой опубликованный лот в draft/upcoming без ставок: при снятии видимости
+    // статус строго draft (не остаётся upcoming → не «отыгрывается» в finished).
     const revertToDraft =
-      existing.published && dto.published === false && existing.status === 'upcoming' && existing.bidCount === 0;
+      existing.published &&
+      dto.published === false &&
+      ['draft', 'upcoming'].includes(existing.status) &&
+      existing.bidCount === 0;
 
     const lot = await this.prisma.lot.update({
       where: { id },
-      data: this.toUpdateData(dto, existing, revertToDraft ? 'draft' : undefined),
+      data: await this.toUpdateData(dto, existing, revertToDraft ? 'draft' : undefined),
     });
     if (lot.published && ['upcoming', 'live'].includes(lot.status)) await this.scheduleJobs(lot.id);
     if (!lot.published) await this.lifecycle.cancelJobs(lot.id);
@@ -179,7 +187,7 @@ export class AdminLotsController {
     if (dto.published) this.assertFutureDates(dto);
     const lot = await this.prisma.lot.create({
       data: {
-        ...this.toCreateData(dto),
+        ...(await this.toCreateData(dto)),
         relistedFromLotId: src.id,
         autotekaPdfKey: src.autotekaPdfKey,
         photos: {
@@ -273,6 +281,7 @@ export class AdminLotsController {
       published: lot.published,
       lotBidStep: lot.bidStep != null ? Number(lot.bidStep) : null,
       lotFeeRate: lot.feeRate != null ? Number(lot.feeRate) : null,
+      addressId: lot.addressId,
     };
   }
 
@@ -287,8 +296,19 @@ export class AdminLotsController {
     }
   }
 
+  /** Снимок адреса из справочника: «label · fullAddress». null/undefined → снять. */
+  private async resolveAddress(
+    addressId: string | null | undefined,
+  ): Promise<{ addressId: string | null; addressText: string | null }> {
+    if (!addressId) return { addressId: null, addressText: null };
+    const a = await this.prisma.address.findUnique({ where: { id: addressId } });
+    if (!a) throw new BadRequestException('Адрес не найден в справочнике');
+    return { addressId: a.id, addressText: `${a.label} · ${a.fullAddress}` };
+  }
+
   /** Общие поля формы (без торгового состояния). */
-  private formFields(dto: LotFormDto) {
+  private async formFields(dto: LotFormDto) {
+    const addr = await this.resolveAddress(dto.addressId);
     return {
       make: dto.make,
       family: dto.family ?? dto.model.split(' ')[0],
@@ -305,6 +325,8 @@ export class AdminLotsController {
       vin: dto.vin ?? null,
       description: dto.description ?? '',
       options: dto.options ?? [],
+      addressId: addr.addressId,
+      addressText: addr.addressText,
       startPrice: BigInt(dto.startPrice),
       reservePrice: BigInt(dto.reservePrice),
       bidStep: dto.bidStep != null ? BigInt(dto.bidStep) : null,
@@ -313,10 +335,10 @@ export class AdminLotsController {
     };
   }
 
-  private toCreateData(dto: LotFormDto): Prisma.LotUncheckedCreateInput {
+  private async toCreateData(dto: LotFormDto): Promise<Prisma.LotUncheckedCreateInput> {
     const endsAt = new Date(dto.endsAt);
     return {
-      ...this.formFields(dto),
+      ...(await this.formFields(dto)),
       currentPrice: BigInt(dto.startPrice),
       startsAt: new Date(dto.startsAt),
       endsAt,
@@ -326,15 +348,15 @@ export class AdminLotsController {
   }
 
   /** На update торговое состояние лота со ставками (цена, лидер) не трогаем. */
-  private toUpdateData(
+  private async toUpdateData(
     dto: LotFormDto,
     existing: { bidCount: number; status: string },
     statusOverride?: 'draft',
-  ): Prisma.LotUncheckedUpdateInput {
+  ): Promise<Prisma.LotUncheckedUpdateInput> {
     const endsAt = new Date(dto.endsAt);
     const hasBids = existing.bidCount > 0;
     return {
-      ...this.formFields(dto),
+      ...(await this.formFields(dto)),
       startsAt: new Date(dto.startsAt),
       endsAt,
       ...(hasBids ? {} : { currentPrice: BigInt(dto.startPrice), originalEndsAt: endsAt }),

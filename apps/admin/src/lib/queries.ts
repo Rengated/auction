@@ -1,5 +1,5 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DealStatus, LotDto, MeDto } from '@hermes/shared';
+import type { AddressDto, DealStatus, LotDto, MeDto } from '@hermes/shared';
 import { ApiError, del, get, patch, post, postForm, putJson } from './api';
 
 export const queryClient = new QueryClient({
@@ -19,7 +19,12 @@ export type AdminLot = LotDto & {
   lotBidStep: number | null;
   /** Своя комиссия лота (доля 0..1), null → глобальная */
   lotFeeRate: number | null;
+  /** Выбранный адрес (точка осмотра/выдачи), null → без адреса */
+  addressId: string | null;
 };
+
+/** Адрес из справочника (точка осмотра/выдачи). */
+export type AdminAddress = AddressDto;
 
 export interface LotFormPayload {
   make: string;
@@ -37,6 +42,7 @@ export interface LotFormPayload {
   vin?: string;
   description?: string;
   options?: string[];
+  addressId?: string | null;
   startPrice: number;
   reservePrice: number;
   bidStep?: number | null;
@@ -87,6 +93,8 @@ export interface AdminSettings {
   notificationToggles: Record<string, boolean>;
   telegramBotToken: string;
   telegramChannelId: string;
+  telegramContact: string;
+  telegramFooter: string;
 }
 
 export interface DashboardData {
@@ -164,6 +172,9 @@ export const useUsers = (filter: UsersFilter = 'all') =>
 export const useSettings = () =>
   useQuery<AdminSettings>({ queryKey: ['settings'], queryFn: () => get('/admin/settings') });
 
+export const useAddresses = () =>
+  useQuery<AdminAddress[]>({ queryKey: ['addresses'], queryFn: () => get('/admin/addresses') });
+
 /* ---------- мутации ---------- */
 
 function invalidateLots(qc: ReturnType<typeof useQueryClient>) {
@@ -177,6 +188,31 @@ export function useCreateLot() {
   return useMutation<{ id: string }, ApiError, LotFormPayload>({
     mutationFn: (data) => post('/admin/lots', data),
     onSuccess: () => invalidateLots(qc),
+  });
+}
+
+/** Снятие лота с публикации: PATCH с полным payload и published:false → возврат в черновик. */
+export function useUnpublishLot() {
+  const qc = useQueryClient();
+  return useMutation<{ id: string }, ApiError, { id: string; payload: LotFormPayload }>({
+    mutationFn: ({ id, payload }) => patch(`/admin/lots/${id}`, payload),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+export function useCreateAddress() {
+  const qc = useQueryClient();
+  return useMutation<{ id: string }, ApiError, { label: string; fullAddress: string; city?: string; sortOrder?: number }>({
+    mutationFn: (data) => post('/admin/addresses', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['addresses'] }),
+  });
+}
+
+export function useDeleteAddress() {
+  const qc = useQueryClient();
+  return useMutation<unknown, ApiError, string>({
+    mutationFn: (id) => del(`/admin/addresses/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['addresses'] }),
   });
 }
 

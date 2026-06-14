@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmt, NOTIFICATION_EVENTS, type NotificationEvent } from '@hermes/shared';
-import { useSaveSettings, useSettings, type AdminSettings } from '../lib/queries';
+import {
+  useAddresses,
+  useCreateAddress,
+  useDeleteAddress,
+  useSaveSettings,
+  useSettings,
+  type AdminSettings,
+} from '../lib/queries';
 
 function Stepper({ val, set, delta, suf, fmtv }: { val: number; set: (n: number) => void; delta: number; suf: string; fmtv?: (n: number) => string }) {
   const round = (n: number) => Math.round(n * 10000) / 10000;
@@ -36,6 +43,10 @@ const NOTIF_LABELS: Record<NotificationEvent, string> = {
 export function SettingsPage() {
   const { data } = useSettings();
   const save = useSaveSettings();
+  const { data: addresses = [] } = useAddresses();
+  const createAddress = useCreateAddress();
+  const deleteAddress = useDeleteAddress();
+  const [addr, setAddr] = useState({ label: '', fullAddress: '', city: '' });
   const [form, setForm] = useState<AdminSettings | null>(null);
   const [toast, setToast] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -50,6 +61,14 @@ export function SettingsPage() {
   const up = (patch: Partial<AdminSettings>) => setForm((f) => (f ? { ...f, ...patch } : f));
   const setC = (k: string, v: string) => up({ managerContacts: { ...form.managerContacts, [k]: v } });
   const contacts = form.managerContacts;
+
+  const addAddress = () => {
+    if (!addr.label.trim() || !addr.fullAddress.trim()) return;
+    createAddress.mutate(
+      { label: addr.label.trim(), fullAddress: addr.fullAddress.trim(), city: addr.city.trim() || undefined },
+      { onSuccess: () => setAddr({ label: '', fullAddress: '', city: '' }) },
+    );
+  };
 
   const onSave = () =>
     save.mutate(form, {
@@ -129,6 +148,56 @@ export function SettingsPage() {
         </div>
 
         <div className="pcard">
+          <div className="ph"><div><h3>Адреса (точки выдачи)</h3><div className="sub">справочник точек осмотра и выдачи авто</div></div></div>
+          <div style={{ padding: 20 }}>
+            {addresses.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {addresses.map((a) => (
+                  <div
+                    key={a.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--panel2)' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: '600 14px/1.2 var(--ui)' }}>{a.label}</div>
+                      <div style={{ fontSize: 12.5, color: 'var(--dim)', marginTop: 4 }}>
+                        {a.fullAddress}{a.city ? ` · ${a.city}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      className="iconbtn2"
+                      title="Удалить адрес"
+                      disabled={deleteAddress.isPending}
+                      onClick={() => deleteAddress.mutate(a.id)}
+                      style={{ width: 30, height: 30, fontSize: 15, flex: 'none' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 18px' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="fld-l">Название</label>
+                <input className="in" value={addr.label} onChange={(e) => setAddr((a) => ({ ...a, label: e.target.value }))} placeholder="Шоурум на Ленинском" />
+              </div>
+              <div>
+                <label className="fld-l">Адрес</label>
+                <input className="in" value={addr.fullAddress} onChange={(e) => setAddr((a) => ({ ...a, fullAddress: e.target.value }))} placeholder="Ленинский пр-т, 1" />
+              </div>
+              <div>
+                <label className="fld-l">Город</label>
+                <input className="in" value={addr.city} onChange={(e) => setAddr((a) => ({ ...a, city: e.target.value }))} placeholder="Москва" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, marginTop: 16 }}>
+              <div className="hint" style={{ margin: 0 }}>адреса выбираются при создании лота</div>
+              <button className="btn" disabled={createAddress.isPending || !addr.label.trim() || !addr.fullAddress.trim()} onClick={addAddress}>Добавить адрес</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="pcard">
           <div className="ph"><div><h3>Антиснайпинг</h3><div className="sub">защита от ставок в последнюю секунду</div></div></div>
           <div className="set-row">
             <div className="info">
@@ -200,6 +269,24 @@ export function SettingsPage() {
                   value={form.telegramChannelId}
                   onChange={(e) => up({ telegramChannelId: e.target.value })}
                   placeholder="@hermes_trade или -100…"
+                />
+              </div>
+              <div>
+                <label className="fld-l">Контакт под постом</label>
+                <input
+                  className="in"
+                  value={form.telegramContact}
+                  onChange={(e) => up({ telegramContact: e.target.value })}
+                  placeholder="@optimaselect"
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label className="fld-l">Подпись под постом</label>
+                <textarea
+                  className="in"
+                  value={form.telegramFooter}
+                  onChange={(e) => up({ telegramFooter: e.target.value })}
+                  placeholder="Ставка принимается от зарегистрированных участников"
                 />
               </div>
             </div>
