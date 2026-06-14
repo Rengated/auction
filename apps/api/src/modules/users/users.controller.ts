@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 import { NOTIFICATION_EVENTS, type NotificationPrefs } from '@hermes/shared';
 import { Prisma } from '@prisma/client';
 import { CurrentUser, type AuthUser } from '../../common/decorators';
@@ -15,9 +15,10 @@ class ContactsDto {
   @IsNotEmpty()
   phone!: string;
 
-  @IsOptional()
+  // Почта обязательна для допуска к торгам
   @IsEmail()
-  email?: string;
+  @IsNotEmpty()
+  email!: string;
 }
 
 @Controller('me')
@@ -34,7 +35,7 @@ export class UsersController {
       data: {
         fullName: dto.fullName,
         phone: dto.phone,
-        email: dto.email ?? undefined,
+        email: dto.email,
         contactsFilledAt: new Date(),
       },
     });

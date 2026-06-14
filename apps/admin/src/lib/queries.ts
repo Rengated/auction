@@ -108,6 +108,24 @@ export interface DashboardData {
   week: number[];
   activity: Array<{ type: string; title: string; detail: string; at: string }>;
   serverNow: string;
+  /** Оборот (сумма сделок не cancelled), в рублях */
+  totalTurnover: number;
+  /** Средний чек сделки, рублей */
+  avgDeal: number;
+  /** Комиссия за 30 дней, рублей */
+  commissionMonth: number;
+  /** Оборот по дням за неделю (тренд) */
+  turnoverWeek: number[];
+  /** % конверсии в продажу (sold / (sold+finished+withdrawn)) */
+  conversionRate: number;
+  /** % взятого резерва (sold / (sold+finished)) */
+  reserveRate: number;
+  /** % отклонённых ставок за неделю */
+  rejectionRate: number;
+  /** Новых покупателей сегодня */
+  newRegistrations: number;
+  /** Регистрации по дням за неделю */
+  registrationsWeek: number[];
 }
 
 export interface Participant {
@@ -334,7 +352,6 @@ export function usePatchUser() {
       fullName?: string;
       phone?: string;
       email?: string;
-      verified?: boolean;
     }
   >({
     mutationFn: ({ id, ...data }) => patch(`/admin/users/${id}`, data),

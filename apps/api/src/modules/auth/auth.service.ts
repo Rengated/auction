@@ -36,7 +36,7 @@ export class AuthService {
     // Если Яндекс дал и имя, и телефон — сразу считаем контакты заполненными
     // (покупатель может участвовать в торгах без формы; поправит позже в профиле).
     // При повторном входе контакты не трогаем (юзер мог их изменить).
-    const contactsReady = Boolean(profile.fullName && profile.phone);
+    const contactsReady = Boolean(profile.fullName && profile.phone && profile.email);
     return this.prisma.user.upsert({
       where: { yandexId: profile.yandexId },
       create: {

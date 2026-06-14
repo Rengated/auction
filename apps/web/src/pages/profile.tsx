@@ -91,14 +91,18 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
   const [err, setErr] = useState<string | null>(null);
 
   const submit = () => {
-    // Валидация: имя и телефон обязательны
-    if (!fullName.trim() || !phone.trim()) {
-      setErr('Укажите имя и телефон — они обязательны');
+    // Для участия в торгах нужны имя, телефон и почта
+    if (!fullName.trim() || !phone.trim() || !email.trim()) {
+      setErr('Имя, телефон и почта обязательны для участия в торгах');
+      return;
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      setErr('Укажите корректный email');
       return;
     }
     setErr(null);
     save.mutate(
-      { fullName: fullName.trim(), phone: phone.trim(), email: email.trim() || undefined },
+      { fullName: fullName.trim(), phone: phone.trim(), email: email.trim() },
       { onSuccess: onSaved },
     );
   };
@@ -115,7 +119,7 @@ function PersonalForm({ me, mobile, onSaved }: { me: MeDto; mobile: boolean; onS
         <div className="card" style={{ padding: mobile ? '13px 15px' : '14px 18px', marginBottom: 14, display: 'flex', gap: 11, alignItems: 'flex-start', borderColor: 'color-mix(in srgb, var(--accent) 38%, var(--line))' }}>
           <span style={{ width: 17, height: 17, color: 'var(--accent)', flex: 'none', marginTop: 1 }}>{I.shield}</span>
           <span style={{ fontSize: mobile ? 13 : 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-            Заполните контактные данные, чтобы участвовать в торгах. Их увидит только менеджер для связи по сделке.
+            Укажите имя, телефон и почту, чтобы участвовать в торгах. Их увидит только менеджер для связи по сделке.
           </span>
         </div>
       )}

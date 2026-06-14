@@ -150,7 +150,7 @@ export class AuthController {
       displayName: u.displayName,
       username: u.username,
       avatarUrl: u.avatarUrl,
-      contactsFilled: Boolean(u.contactsFilledAt),
+      contactsFilled: Boolean(u.fullName && u.phone && u.email),
       contacts: { fullName: u.fullName, phone: u.phone, email: u.email },
       blockedUntil: u.blockedUntil && u.blockedUntil > new Date() ? u.blockedUntil.toISOString() : null,
       blockReason: u.blockedUntil && u.blockedUntil > new Date() ? u.blockReason : null,

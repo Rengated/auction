@@ -123,7 +123,7 @@ export function useToggleFavorite() {
 export function useSaveContacts() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { fullName: string; phone: string; email?: string }) =>
+    mutationFn: (data: { fullName: string; phone: string; email: string }) =>
       patch('/me/contacts', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   });

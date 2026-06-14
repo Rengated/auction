@@ -15,10 +15,11 @@ export class ContactsFilledGuard implements CanActivate {
     await assertNotBlocked(this.prisma, reqUser.id);
     const user = await this.prisma.user.findUnique({ where: { id: reqUser.id } });
     if (!user) return false;
-    if (!user.contactsFilledAt) {
+    // Допуск к торгам — строго по факту заполненных контактов (имя+телефон+почта)
+    if (!(user.fullName && user.phone && user.email)) {
       throw new ApiError(
         ERROR_CODES.CONTACTS_REQUIRED,
-        'Заполните личные данные для участия в торгах',
+        'Заполните имя, телефон и почту для участия в торгах',
         HttpStatus.FORBIDDEN,
       );
     }

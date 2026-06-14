@@ -2,12 +2,13 @@
  * Интеграционные тесты входа персонала по логину/паролю.
  * Работают с реальными Postgres/Redis из docker-compose.
  */
-import { INestApplication, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, INestApplication, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { AuthService } from '../src/modules/auth/auth.service';
+import { ContactsFilledGuard } from '../src/modules/auth/contacts.guard';
 
 describe('Auth — пароли персонала', () => {
   let app: INestApplication;
@@ -51,5 +52,38 @@ describe('Auth — пароли персонала', () => {
     createdUsers.push(u.id);
     // username null → verifyPassword по username его не найдёт; проверим прямой кейс с пустым хэшем
     await expect(auth.verifyPassword(u.username ?? 'nope', 'any')).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  describe('Допуск к торгам — имя+телефон+почта', () => {
+    let guard: ContactsFilledGuard;
+    const ctxFor = (userId: string): ExecutionContext =>
+      ({ switchToHttp: () => ({ getRequest: () => ({ user: { id: userId } }) }) }) as ExecutionContext;
+
+    beforeAll(() => {
+      guard = app.get(ContactsFilledGuard);
+    });
+
+    it('нет почты → CONTACTS_REQUIRED (403)', async () => {
+      const u = await prisma.user.create({
+        data: { yandexId: `g-${randomUUID()}`, displayName: 'Без почты', role: 'buyer', fullName: 'Имя', phone: '+79000000000' },
+      });
+      createdUsers.push(u.id);
+      await expect(guard.canActivate(ctxFor(u.id))).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('есть имя+телефон+почта → допуск', async () => {
+      const u = await prisma.user.create({
+        data: {
+          yandexId: `g-${randomUUID()}`,
+          displayName: 'Полный',
+          role: 'buyer',
+          fullName: 'Имя Фамилия',
+          phone: '+79000000001',
+          email: 'buyer@example.com',
+        },
+      });
+      createdUsers.push(u.id);
+      await expect(guard.canActivate(ctxFor(u.id))).resolves.toBe(true);
+    });
   });
 });

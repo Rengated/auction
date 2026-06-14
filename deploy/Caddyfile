@@ -24,6 +24,30 @@
 		reverse_proxy minio:9000
 	}
 
+	# OG-превью для краулеров соцсетей: при шеринге ссылки на лот возвращаем
+	# HTML с og:-метатегами (фото/название/цена). Людей это не задевает.
+	@og_bot {
+		header_regexp User-Agent (?i)(telegrambot|whatsapp|facebookexternalhit|vkshare|twitterbot|slackbot|discordbot|linkedinbot|skypeuripreview|googlebot)
+	}
+	handle @og_bot {
+		@lot path_regexp lot ^/lots/([0-9a-fA-F-]+)$
+		handle @lot {
+			rewrite * /og/lots/{re.lot.1}
+			reverse_proxy api:3000
+		}
+		@homepath path /
+		handle @homepath {
+			rewrite * /og/home
+			reverse_proxy api:3000
+		}
+		# прочие пути ботам — обычная статика
+		handle {
+			root * /srv/web
+			try_files {path} /index.html
+			file_server
+		}
+	}
+
 	# SPA: статика + fallback на index.html; service worker без кэша
 	handle {
 		root * /srv/web

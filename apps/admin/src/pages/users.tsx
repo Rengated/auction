@@ -20,7 +20,6 @@ const blockLabel = (u: AdminUser) =>
 function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
   const patch = usePatchUser();
   const [role, setRole] = useState<AdminUser['role']>(user.role);
-  const [verified, setVerified] = useState(user.verified);
   const [blocked, setBlocked] = useState(isBlocked(user));
   const [mode, setMode] = useState<'until' | 'perm'>(user.blockPermanent ? 'perm' : 'until');
   const [until, setUntil] = useState(user.blockedUntil ? user.blockedUntil.slice(0, 10) : '');
@@ -32,7 +31,6 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
       {
         id: user.id,
         role,
-        verified,
         blockedUntil: blocked ? (mode === 'perm' ? 'perm' : new Date(`${until}T23:59:59`).toISOString()) : null,
         blockReason: blocked ? reason : '',
       },
@@ -98,10 +96,12 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
                 <div>
-                  <div className="t" style={{ font: '600 14px/1 var(--ui)' }}>Верифицирован</div>
-                  <div className="hint" style={{ marginTop: 6 }}>паспорт проверен</div>
+                  <div className="t" style={{ font: '600 14px/1 var(--ui)' }}>Контакты</div>
+                  <div className="hint" style={{ marginTop: 6 }}>допуск к торгам — по заполненным имени, телефону и почте</div>
                 </div>
-                <div className={`tg ${verified ? 'on' : ''}`} onClick={() => setVerified((v) => !v)}></div>
+                {user.verified
+                  ? <span className="sb sold"><span className="dot"></span> заполнены</span>
+                  : <span className="sb fin">не заполнены</span>}
               </div>
             </div>
           </div>

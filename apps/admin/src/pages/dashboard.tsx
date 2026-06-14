@@ -40,6 +40,17 @@ export function DashboardPage() {
   });
   const activity = data?.activity ?? [];
 
+  // Тренды для мини-графиков (нормировка по максимуму)
+  const turnoverWeek = data?.turnoverWeek ?? [0, 0, 0, 0, 0, 0, 0];
+  const tmax = Math.max(1, ...turnoverWeek);
+  const regWeek = data?.registrationsWeek ?? [0, 0, 0, 0, 0, 0, 0];
+  const rmax = Math.max(1, ...regWeek);
+
+  // Средняя эффективная ставка комиссии из факта (если есть и оборот, и комиссия)
+  const turnover = data?.totalTurnover ?? 0;
+  const commission = data?.commissionTotal ?? 0;
+  const effRate = turnover > 0 && commission > 0 ? (commission / turnover) * 100 : null;
+
   return (
     <div className="content fade">
       <div className="stats">
@@ -61,7 +72,69 @@ export function DashboardPage() {
         <div className="stat">
           <div className="l">Комиссия (продано)</div>
           <div className="v">{fmt(data?.commissionTotal ?? 0)} ₽</div>
-          <div className="d">1.5% · {data?.dealsCount ?? 0} сделок</div>
+          <div className="d">{effRate !== null ? `${effRate.toFixed(1)}% эфф. · ` : ''}{data?.dealsCount ?? 0} сделок</div>
+        </div>
+      </div>
+
+      <div className="section-gap"></div>
+
+      {/* финансы + качество */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
+        <div className="pcard">
+          <div className="ph">
+            <div><h3>Финансы</h3><div className="sub">оборот и комиссия</div></div>
+          </div>
+          <div style={{ padding: '8px 20px 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
+              <div className="l">Оборот</div>
+              <div className="v">{fmt(turnover)} ₽</div>
+              <div className="d">по сделкам</div>
+            </div>
+            <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
+              <div className="l">Комиссия за месяц</div>
+              <div className="v">{fmt(data?.commissionMonth ?? 0)} ₽</div>
+              <div className="d">за 30 дней</div>
+            </div>
+            <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
+              <div className="l">Средний чек</div>
+              <div className="v">{fmt(data?.avgDeal ?? 0)} ₽</div>
+              <div className="d">на сделку</div>
+            </div>
+          </div>
+          <div style={{ padding: '18px 20px 22px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 130 }}>
+            {turnoverWeek.map((n, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ width: '100%', height: `${(n / tmax) * 100}%`, background: i === turnoverWeek.length - 1 ? 'var(--accent)' : 'var(--accent-soft)', borderRadius: '6px 6px 0 0', minHeight: 4 }}></div>
+                <span className="num" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{days[i]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="pcard">
+          <div className="ph">
+            <div><h3>Качество</h3><div className="sub">конверсия и резерв</div></div>
+          </div>
+          <div style={{ padding: '8px 20px 16px' }}>
+            {[
+              { l: 'Конверсия в продажу', v: `${Math.round(data?.conversionRate ?? 0)}%`, c: 'var(--ok)' },
+              { l: 'Взят резерв', v: `${Math.round(data?.reserveRate ?? 0)}%`, c: 'var(--accent)' },
+              { l: 'Отклонено ставок', v: `${Math.round(data?.rejectionRate ?? 0)}%`, c: 'var(--gold)' },
+              { l: 'Новых сегодня', v: fmt(data?.newRegistrations ?? 0), c: 'var(--ink)' },
+            ].map((r, i, arr) => (
+              <div key={r.l} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--line)' : 0 }}>
+                <span style={{ font: '600 13px/1.2 var(--ui)', color: 'var(--dim)' }}>{r.l}</span>
+                <span className="num" style={{ fontSize: 15, fontWeight: 700, color: r.c }}>{r.v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '0 20px 18px', display: 'flex', alignItems: 'flex-end', gap: 8, height: 70 }}>
+            {regWeek.map((n, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                <div title={`${n}`} style={{ width: '100%', height: `${(n / rmax) * 100}%`, background: i === regWeek.length - 1 ? 'var(--accent)' : 'var(--accent-soft)', borderRadius: '5px 5px 0 0', minHeight: 3 }}></div>
+                <span className="num" style={{ fontSize: 9.5, color: 'var(--faint)' }}>{days[i]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

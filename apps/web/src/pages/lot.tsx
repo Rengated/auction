@@ -53,10 +53,11 @@ function AddressCard({ address }: { address: string }) {
 /** Поделиться лотом: системный шит или копирование ссылки. Возвращает true при копировании. */
 async function shareLot(lot: LotDto): Promise<boolean> {
   const url = `${location.origin}/lots/${lot.id}`;
-  const title = `${lot.make} ${lot.model}`;
+  const title = `${lot.make} ${lot.model}, ${lot.year}`;
+  const text = `${title} — ${rub(lot.currentPrice)} · ${fmt(lot.mileage)} км на Hermes Trade`;
   if (navigator.share) {
     try {
-      await navigator.share({ title, url });
+      await navigator.share({ title, text, url });
     } catch {
       /* отмена пользователем — игнорируем */
     }
