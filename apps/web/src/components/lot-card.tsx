@@ -79,6 +79,12 @@ export function LotCardBody({ lot, onToggleFav }: { lot: LotDto; onToggleFav?: (
           <span style={{ color: 'var(--line)' }}>·</span>
           <span>{lot.fuel}</span>
         </div>
+        {lot.address && (
+          <div className="num" style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-faint)', fontSize: 12, marginTop: 7, minWidth: 0 }}>
+            <Ic d={I.pin} s={13} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lot.address}</span>
+          </div>
+        )}
         <hr style={{ height: 1, background: 'var(--line-soft)', border: 0, margin: '14px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
