@@ -102,15 +102,26 @@ export class TelegramService {
       const photoSrc = photo ? photoUrl(photo, 'lg') : '';
       // sendPhoto по URL первого фото; если Telegram не дотянулся (localhost-dev) — текстом
       if (event === 'published' && photoSrc.startsWith('http')) {
-        const ok = await this.api(token, 'sendPhoto', { chat_id: chatId, photo: photoSrc, caption: text });
+        const ok = await this.api(token, 'sendPhoto', {
+          chat_id: chatId,
+          photo: photoSrc,
+          caption: text,
+          parse_mode: 'HTML',
+        });
         if (ok) return;
       }
-      await this.api(token, 'sendMessage', { chat_id: chatId, text });
+      await this.api(token, 'sendMessage', {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+      });
     } catch (e) {
       this.logger.warn(`announceLot(${event}, ${lotId}) failed: ${(e as Error).message}`);
     }
   }
 
+  /** Стильный продающий пост с HTML-разметкой (parse_mode=HTML). */
   private buildText(
     event: TgLotEvent,
     lot: {
@@ -133,6 +144,7 @@ export class TelegramService {
     footer: string,
     extra?: { finalPrice?: number },
   ): string {
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const webOrigin = (process.env.WEB_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, '');
     const lotNo = lot.id.slice(0, 6).toUpperCase();
     const lotUrl = `${webOrigin}/lots/${lot.id}`;
@@ -143,33 +155,83 @@ export class TelegramService {
       minute: '2-digit',
       timeZone: 'Europe/Moscow',
     });
+    const title = esc(`${lot.make} ${lot.model}, ${lot.year}`);
+    const price = (n: number) => `${fmt(n)} ₽`;
 
-    // Заголовок-плашка по событию
-    const head: Record<TgLotEvent, string> = {
-      published: `🟢 Новый лот · старт ${startsAt} МСК`,
-      opened: `🔴 Торги идут · текущая ${fmt(Number(lot.currentPrice))} ₽`,
-      sold: `✅ Продан за ${fmt(extra?.finalPrice ?? Number(lot.currentPrice))} ₽`,
-      finished: `⚪️ Торги завершены · резерв не достигнут`,
-      withdrawn: `⚪️ Лот снят с торгов`,
-    };
+    const L: string[] = [];
 
-    const lines = [
-      `Лот ${lotNo} 🚘 ${lot.make} ${lot.model}, ${lot.year}`,
-      `✅ Пробег: ${fmt(lot.mileage)} км`,
-      `✅ ${lot.transmission}, ${lot.drive}`,
-      `${lot.fuel}, ${lot.engine}, ${lot.power} л.с.`,
-    ];
-    if (lot.addressText) lines.push(`📍 Авто находится: ${lot.addressText}`);
-    lines.push(`🔗 Фото, отчёт и подробности: ${lotUrl}`);
-    lines.push('');
-    lines.push(head[event]);
-    if (event === 'published') lines.push(`Стартовая цена: ${fmt(Number(lot.startPrice))} ₽`);
-    if (contact.trim()) {
-      lines.push('');
-      lines.push(`Остались вопросы? ${contact.trim()}`);
+    // ── Заголовок-плашка по событию (продающий тон) ──
+    switch (event) {
+      case 'published':
+        L.push(`🔥 <b>${title}</b>`);
+        break;
+      case 'opened':
+        L.push(`🟢 <b>Торги идут — ${title}</b>`);
+        break;
+      case 'sold':
+        L.push(`✅ <b>ПРОДАН — ${title}</b>`);
+        break;
+      case 'finished':
+        L.push(`⚪️ <b>Торги завершены — ${title}</b>`);
+        break;
+      case 'withdrawn':
+        L.push(`⚪️ <b>Снят с торгов — ${title}</b>`);
+        break;
     }
-    if (footer.trim()) lines.push(footer.trim());
-    return lines.join('\n');
+    L.push(`<i>Лот #${lotNo}</i>`);
+    L.push('');
+
+    // ── Характеристики (всегда) ──
+    L.push(`📊 ${fmt(lot.mileage)} км · ${esc(lot.engine)} · ${lot.power} л.с.`);
+    L.push(`⚙️ ${esc(lot.transmission)}, ${esc(lot.drive)}, ${esc(lot.fuel)}`);
+    if (lot.addressText) L.push(`📍 ${esc(lot.addressText)}`);
+    L.push('');
+
+    // ── Цена + призыв к действию по событию ──
+    switch (event) {
+      case 'published':
+        L.push(`💰 Стартовая цена: <b>${price(Number(lot.startPrice))}</b>`);
+        L.push(`🕒 Старт торгов: <b>${startsAt} МСК</b>`);
+        L.push('');
+        L.push('⏰ Успейте сделать ставку — лот уйдёт по лучшей цене.');
+        break;
+      case 'opened':
+        L.push(`💰 Текущая цена: <b>${price(Number(lot.currentPrice))}</b>`);
+        L.push('');
+        L.push('🔨 Торги в самом разгаре — сделайте ставку, пока лот доступен!');
+        break;
+      case 'sold':
+        L.push(`💰 Цена продажи: <b>${price(extra?.finalPrice ?? Number(lot.currentPrice))}</b>`);
+        L.push('');
+        L.push('🎉 Поздравляем победителя! Следующие лоты — в нашем канале.');
+        break;
+      case 'finished':
+        L.push('Резерв не достигнут — лот может вернуться на торги. Следите за каналом.');
+        break;
+      case 'withdrawn':
+        L.push('Лот снят с торгов организатором.');
+        break;
+    }
+    L.push('');
+
+    // ── Кликабельная ссылка-CTA ──
+    const cta =
+      event === 'sold' || event === 'finished' || event === 'withdrawn'
+        ? 'Смотреть карточку лота'
+        : 'Смотреть лот и сделать ставку';
+    L.push(`🔗 <a href="${lotUrl}">${cta} →</a>`);
+
+    // ── Подвал: контакт + подпись ──
+    const foot: string[] = [];
+    if (contact.trim()) foot.push(`💬 ${esc(contact.trim())}`);
+    if (footer.trim()) foot.push(esc(footer.trim()));
+    if (foot.length) {
+      L.push('');
+      L.push('➖➖➖➖➖');
+      L.push(foot.join('\n'));
+    }
+
+    return L.join('\n');
   }
 
   /** true — доставлено; false/throw — нет (логируется выше). */

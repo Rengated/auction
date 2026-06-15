@@ -27,13 +27,24 @@ function Shell({ children, mobileNav = true }: { children: React.ReactNode; mobi
   );
 }
 
+const loadingScreen = (
+  <div style={{ display: 'grid', placeItems: 'center', height: '100dvh', color: 'var(--text-faint)' }}>Hermes Trade…</div>
+);
+
+/** Приватный гейт: требует входа (гость → экран входа) + блокировка. */
 function Gate({ children }: { children: React.ReactNode }) {
   const { data: me, isLoading } = useMe();
-  if (isLoading) {
-    return <div style={{ display: 'grid', placeItems: 'center', height: '100dvh', color: 'var(--text-faint)' }}>Hermes Trade…</div>;
-  }
+  if (isLoading) return loadingScreen;
   if (!me) return <AuthPage />;
   if (me.blockedUntil && new Date(me.blockedUntil) > new Date()) return <BlockedScreen me={me} />;
+  return <>{children}</>;
+}
+
+/** Гостевой гейт: пускает всех (каталог/лот). Заблокированного (вошедшего) — на экран блокировки. */
+function GuestGate({ children }: { children: React.ReactNode }) {
+  const { data: me, isLoading } = useMe();
+  if (isLoading) return loadingScreen;
+  if (me?.blockedUntil && new Date(me.blockedUntil) > new Date()) return <BlockedScreen me={me} />;
   return <>{children}</>;
 }
 
@@ -41,6 +52,12 @@ const page = (el: React.ReactNode, mobileNav = true) => (
   <Gate>
     <Shell mobileNav={mobileNav}>{el}</Shell>
   </Gate>
+);
+
+const guestPage = (el: React.ReactNode, mobileNav = true) => (
+  <GuestGate>
+    <Shell mobileNav={mobileNav}>{el}</Shell>
+  </GuestGate>
 );
 
 function Router() {
@@ -57,9 +74,9 @@ function Router() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
-        <Route path="/" element={page(<CatalogPage />)} />
-        <Route path="/live" element={page(<LivePage />)} />
-        <Route path="/lots/:id" element={page(<LotPage />, false)} />
+        <Route path="/" element={guestPage(<CatalogPage />)} />
+        <Route path="/live" element={guestPage(<LivePage />)} />
+        <Route path="/lots/:id" element={guestPage(<LotPage />, false)} />
         <Route path="/my-bids" element={page(<MyBidsPage />)} />
         <Route path="/profile" element={page(<ProfilePage />)} />
         <Route path="/profile/:page" element={page(<ProfilePage />, false)} />

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { LotPhotoDto } from '@hermes/shared';
 
 /** Фото с фолбэком на глиф-плейсхолдер (как в прототипе). */
@@ -67,6 +67,17 @@ export function Carousel({
     e?.stopPropagation();
     setI((p) => (p + d + slides) % slides);
   };
+  // Свайп пальцем на мобильном (порог 40px по горизонтали)
+  const touchX = useRef<number | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchX.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchX.current === null || slides <= 1) return;
+    const dx = e.changedTouches[0].clientX - touchX.current;
+    touchX.current = null;
+    if (Math.abs(dx) > 40) setI((p) => (p + (dx < 0 ? 1 : -1) + slides) % slides);
+  };
   const arrow = (side: 'left' | 'right'): CSSProperties => ({
     position: 'absolute', top: '50%', [side]: 12, transform: 'translateY(-50%)', zIndex: 4,
     width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--line)',
@@ -76,7 +87,11 @@ export function Carousel({
   const cur = photos[i];
   const isVideo = cur?.kind === 'video';
   return (
-    <div style={{ position: 'relative', ...style }}>
+    <div
+      style={{ position: 'relative', touchAction: 'pan-y', ...style }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       {isVideo ? (
         <div className="photo" style={{ height: h, borderRadius: radius }}>
           <video
@@ -101,9 +116,13 @@ export function Carousel({
               {i + 1} / {total}
             </div>
           ) : (
-            <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 4, display: 'flex', gap: 5, justifyContent: 'center', pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, zIndex: 4, display: 'flex', gap: 5, justifyContent: 'center' }}>
               {Array.from({ length: slides }).map((_, k) => (
-                <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, background: k === i ? 'var(--accent)' : 'color-mix(in srgb, var(--text) 45%, transparent)', transition: 'all .2s ease' }} />
+                <span
+                  key={k}
+                  onClick={(e) => { e.stopPropagation(); setI(k); }}
+                  style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 3, background: k === i ? 'var(--accent)' : 'color-mix(in srgb, var(--text) 45%, transparent)', transition: 'all .2s ease', cursor: 'pointer' }}
+                />
               ))}
             </div>
           )}

@@ -180,9 +180,11 @@ function BidPanel({ lot }: { lot: LotDto }) {
         style={bf.done ? { background: 'color-mix(in srgb, var(--win) 16%, transparent)', color: 'var(--win)', boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--win) 45%, transparent)' } : {}}>
         {bf.done
           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Ic d={I.check} s={17} /> Ставка принята · вы лидируете</span>
-          : !bf.contactsFilled
-            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Ic d={I.shield} s={16} /> Заполните контакты для ставки</span>
-            : <span style={{ whiteSpace: 'nowrap' }}>Поставить {rub(bf.value)}</span>}
+          : !bf.authed
+            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Ic d={I.user} s={16} /> Войдите, чтобы участвовать</span>
+            : !bf.contactsFilled
+              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Ic d={I.shield} s={16} /> Заполните контакты для ставки</span>
+              : <span style={{ whiteSpace: 'nowrap' }}>Поставить {rub(bf.value)}</span>}
       </button>
     </div>
   );
@@ -208,7 +210,7 @@ function ScreenLot({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
   return (
     <div className="screen screen-enter">
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, display: 'flex', justifyContent: 'space-between', padding: '14px 16px 0' }}>
-        <button className="iconbtn" onClick={() => navigate(-1)}>{I.back}</button>
+        <button className="iconbtn" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>{I.back}</button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {copied && (
             <span className="num" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text)', background: 'color-mix(in srgb, var(--bg) 70%, transparent)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 9px', backdropFilter: 'blur(6px)' }}>
@@ -368,9 +370,11 @@ function WebBidBox({ lot }: { lot: LotDto }) {
             onClick={bf.submit}>
             {bf.done
               ? <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Ic d={I.check} /> Ставка принята · вы лидируете</span>
-              : !bf.contactsFilled
-                ? <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Ic d={I.shield} s={16} /> Заполните контакты для ставки</span>
-                : `Поставить ${rub(bf.value)}`}
+              : !bf.authed
+                ? <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Ic d={I.user} s={16} /> Войдите, чтобы участвовать</span>
+                : !bf.contactsFilled
+                  ? <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Ic d={I.shield} s={16} /> Заполните контакты для ставки</span>
+                  : `Поставить ${rub(bf.value)}`}
           </button>
         </>
       )}
