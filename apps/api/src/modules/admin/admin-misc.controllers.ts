@@ -455,7 +455,13 @@ export class AdminDashboardController {
     const finished = cnt('finished');
     const withdrawn = cnt('withdrawn');
     const closedTotal = sold + finished + withdrawn;
-    const conversionRate = closedTotal > 0 ? Math.round((sold / closedTotal) * 100) : 0;
+    // Конверсия в продажу — по РЕАЛЬНОЙ выдаче (delivered), а не по факту закрытия
+    // торгов: доля выданных машин среди всех завершённых в периоде торгов.
+    const deliveredCount = moneyAgg._count;
+    // Кэп 100%: выдача и закрытие торгов считаются по разным датам (closedAt vs endsAt),
+    // поэтому в коротком окне выданных может оказаться больше, чем закрытых.
+    const conversionRate = closedTotal > 0 ? Math.min(100, Math.round((deliveredCount / closedTotal) * 100)) : 0;
+    // Взят резерв — про аукцион (резерв достигнут на закрытии), остаётся по торгам.
     const reserveRate = sold + finished > 0 ? Math.round((sold / (sold + finished)) * 100) : 0;
 
     const rejectedPeriod = await this.prisma.bid.count({ where: { createdAt: range, rejectedAt: { not: null } } });

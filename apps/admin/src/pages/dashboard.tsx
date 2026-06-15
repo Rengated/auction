@@ -64,10 +64,7 @@ export function DashboardPage() {
   const regWeek = data?.registrationsWeek ?? [];
   const rmax = Math.max(1, ...regWeek);
 
-  // Средняя эффективная ставка комиссии из факта (если есть и оборот, и комиссия)
   const turnover = data?.totalTurnover ?? 0;
-  const commission = data?.commissionTotal ?? 0;
-  const effRate = turnover > 0 && commission > 0 ? (commission / turnover) * 100 : null;
 
   return (
     <div className="content fade">
@@ -96,7 +93,7 @@ export function DashboardPage() {
         <div className="stat">
           <div className="l">Комиссия (выдано)</div>
           <div className="v">{fmt(data?.commissionTotal ?? 0)} ₽</div>
-          <div className="d">{effRate !== null ? `${effRate.toFixed(1)}% эфф. · ` : ''}{data?.dealsCount ?? 0} выдано</div>
+          <div className="d">{data?.dealsCount ?? 0} выдано</div>
         </div>
       </div>
 
@@ -140,7 +137,7 @@ export function DashboardPage() {
           </div>
           <div style={{ padding: '8px 20px 16px' }}>
             {[
-              { l: 'Конверсия в продажу', v: `${Math.round(data?.conversionRate ?? 0)}%`, c: 'var(--ok)' },
+              { l: 'Доведено до выдачи', v: `${Math.round(data?.conversionRate ?? 0)}%`, c: 'var(--ok)' },
               { l: 'Взят резерв', v: `${Math.round(data?.reserveRate ?? 0)}%`, c: 'var(--accent)' },
               { l: 'Отклонено ставок', v: `${Math.round(data?.rejectionRate ?? 0)}%`, c: 'var(--gold)' },
               { l: 'Новых за период', v: fmt(data?.newRegistrations ?? 0), c: 'var(--ink)' },
