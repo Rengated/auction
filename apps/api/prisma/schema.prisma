@@ -141,6 +141,9 @@ model Lot {
 
   relistedFromLotId String? @map("relisted_from_lot_id") @db.Uuid
 
+  /** Архив: мягкое скрытие из каталога покупателя и основных списков админки. */
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

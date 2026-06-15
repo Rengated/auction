@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -30,7 +32,7 @@ import {
   Min,
 } from 'class-validator';
 import { PAGE_LIMITS, WS_EVENTS } from '@hermes/shared';
-import { Roles } from '../../common/decorators';
+import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LifecycleService } from '../auction-engine/lifecycle.service';
@@ -90,16 +92,20 @@ export class AdminLotsController {
   async list(@Query('filter') filter = 'all', @Query() page: PageQueryDto) {
     const limit = page.limit ?? PAGE_LIMITS.admin;
     const offset = page.offset ?? 0;
+    // Архивные скрыты из всех вкладок, кроме явного 'archived'.
+    const notArchived = { archivedAt: null };
     const where: Prisma.LotWhereInput =
-      filter === 'draft'
-        ? { published: false }
-        : filter === 'live'
-          ? { status: 'live' }
-          : filter === 'soon'
-            ? { status: 'upcoming' }
-            : filter === 'done'
-              ? { status: { in: ['sold', 'finished', 'withdrawn'] } }
-              : {};
+      filter === 'archived'
+        ? { archivedAt: { not: null } }
+        : filter === 'draft'
+          ? { ...notArchived, published: false }
+          : filter === 'live'
+            ? { ...notArchived, status: 'live' }
+            : filter === 'soon'
+              ? { ...notArchived, status: 'upcoming' }
+              : filter === 'done'
+                ? { ...notArchived, status: { in: ['sold', 'finished', 'withdrawn'] } }
+                : notArchived;
     const [lots, total] = await this.prisma.$transaction([
       this.prisma.lot.findMany({
         where,
@@ -210,6 +216,45 @@ export class AdminLotsController {
     return { id: lot.id };
   }
 
+  /** Архив лота: скрыть из каталога и основных вкладок. Снимаем джобы движка. */
+  @Post(':id/archive')
+  async archive(@Param('id', ParseUUIDPipe) id: string) {
+    const lot = await this.prisma.lot.findUnique({ where: { id } });
+    if (!lot) throw new NotFoundException();
+    if (lot.status === 'live') throw new BadRequestException('Сначала завершите или снимите торги');
+    await this.lifecycle.cancelJobs(id);
+    await this.prisma.lot.update({ where: { id }, data: { archivedAt: new Date() } });
+    return { ok: true };
+  }
+
+  @Post(':id/unarchive')
+  async unarchive(@Param('id', ParseUUIDPipe) id: string) {
+    await this.prisma.lot.update({ where: { id }, data: { archivedAt: null } });
+    return { ok: true };
+  }
+
+  /** Удаление лота — только admin, и только без ставок/сделки и не в эфире. */
+  @Delete(':id')
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthUser) {
+    if (actor!.role !== 'admin') throw new ForbiddenException('Удаление доступно только администратору');
+    const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
+    if (!lot) throw new NotFoundException();
+    if (lot.status === 'live') throw new ConflictException('Лот в эфире — сначала завершите торги');
+    if (lot.bidCount > 0) throw new ConflictException('У лота есть ставки — используйте архив');
+    const deal = await this.prisma.deal.findUnique({ where: { lotId: id }, select: { id: true } });
+    if (deal) throw new ConflictException('По лоту есть сделка — используйте архив');
+    await this.lifecycle.cancelJobs(id);
+    // Сначала чистим S3 (фото/видео/pdf), потом каскадно удаляем лот.
+    for (const p of lot.photos) {
+      if (!p.objectKey) continue;
+      if (p.kind === 'video') await this.media.deleteObject(p.objectKey).catch(() => undefined);
+      else await this.media.deleteLotPhoto(p.objectKey).catch(() => undefined);
+    }
+    if (lot.autotekaPdfKey) await this.media.deleteObject(lot.autotekaPdfKey).catch(() => undefined);
+    await this.prisma.lot.delete({ where: { id } });
+    return { ok: true };
+  }
+
   @Post(':id/photos')
   @UseInterceptors(FilesInterceptor('files', MAX_MEDIA_PER_LOT, { limits: { fileSize: MAX_VIDEO_BYTES } }))
   async uploadMedia(@Param('id', ParseUUIDPipe) id: string, @UploadedFiles() files: Express.Multer.File[]) {
@@ -290,6 +335,7 @@ export class AdminLotsController {
       lotBidStep: lot.bidStep != null ? Number(lot.bidStep) : null,
       lotFeeRate: lot.feeRate != null ? Number(lot.feeRate) : null,
       addressId: lot.addressId,
+      archived: Boolean(lot.archivedAt),
     };
   }
 

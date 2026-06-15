@@ -23,7 +23,11 @@ export class LotsService {
   ): Promise<Page<LotDto>> {
     if (filter === 'fav' && !userId) return { items: [], total: 0, limit, offset };
 
-    const conds: Prisma.Sql[] = [Prisma.sql`l.published = true`, Prisma.sql`l.status <> 'draft'`];
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`l.published = true`,
+      Prisma.sql`l.status <> 'draft'`,
+      Prisma.sql`l.archived_at IS NULL`,
+    ];
     if (filter === 'live') conds.push(Prisma.sql`l.status = 'live'`);
     if (filter === 'soon') conds.push(Prisma.sql`l.status = 'upcoming'`);
     if (filter === 'done') conds.push(Prisma.sql`l.status IN ('sold', 'finished', 'withdrawn')`);
@@ -74,7 +78,8 @@ export class LotsService {
 
   async byId(id: string, userId: string | null): Promise<LotDto> {
     const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
-    if (!lot || (!lot.published && !userId)) throw new NotFoundException();
+    // Архивный лот скрыт для всех (и по прямой ссылке/из избранного) → 404.
+    if (!lot || lot.archivedAt || (!lot.published && !userId)) throw new NotFoundException();
     const defaults = await this.settings.lotDefaults();
 
     let extra: { isFavorite?: boolean; my?: { isLeading: boolean; lastBid: number | null } } = {};
