@@ -26,5 +26,8 @@
       "msgpackr-extract",
       "sharp"
     ]
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0"
   }
 }
