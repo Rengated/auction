@@ -17,8 +17,6 @@ export interface LotPhotoDto {
   card: string;
   md: string;
   lg: string;
-  /** JPEG-вариант lg-размера для соц-превью (Telegram sendPhoto/og:image не едят WebP). */
-  social: string;
   sort: number;
 }
 

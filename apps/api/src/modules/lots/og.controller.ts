@@ -70,7 +70,7 @@ ${img}
         this.page({
           title,
           description: parts.join(' · '),
-          image: lot.photos[0]?.social || `${web}/pwa-512.png`,
+          image: lot.photos[0]?.lg || `${web}/pwa-512.png`,
           url: `${web}/lots/${lot.id}`,
         }),
       );

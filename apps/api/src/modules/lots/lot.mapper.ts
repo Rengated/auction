@@ -15,27 +15,8 @@ export function photoUrl(p: LotPhoto, size: 'card' | 'md' | 'lg'): string {
   return `${S3_PUBLIC}/${p.objectKey}_${size}.webp`;
 }
 
-/**
- * URL для соц-превью (Telegram sendPhoto, og:image) — JPEG lg-размера.
- * Telegram не принимает WebP по URL, поэтому отдаём отдельный _lg.jpg.
- * Для внешних (Unsplash) ссылок отдаём сам URL (он уже JPEG).
- */
-export function photoSocialUrl(p: LotPhoto): string {
-  if (p.externalUrl) return p.externalUrl.replace(/w=\d+/, 'w=1600');
-  if (!p.objectKey) return '';
-  return `${S3_PUBLIC}/${p.objectKey}_lg.jpg`;
-}
-
 export function photoToDto(p: LotPhoto): LotPhotoDto {
-  return {
-    id: p.id,
-    kind: p.kind,
-    card: photoUrl(p, 'card'),
-    md: photoUrl(p, 'md'),
-    lg: photoUrl(p, 'lg'),
-    social: photoSocialUrl(p),
-    sort: p.sort,
-  };
+  return { id: p.id, kind: p.kind, card: photoUrl(p, 'card'), md: photoUrl(p, 'md'), lg: photoUrl(p, 'lg'), sort: p.sort };
 }
 
 export function autotekaPdfUrl(lot: Pick<Lot, 'autotekaPdfKey'>): string | null {
