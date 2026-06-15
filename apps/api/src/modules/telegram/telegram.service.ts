@@ -2,10 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as tls from 'tls';
 import { Agent, ProxyAgent, type Dispatcher } from 'undici';
 import { SocksClient } from 'socks';
+import sharp from 'sharp';
 import { fmt } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
-import { photoUrl } from '../lots/lot.mapper';
 
 export type TgLotEvent = 'published' | 'opened' | 'sold' | 'finished' | 'withdrawn';
 
@@ -99,16 +99,17 @@ export class TelegramService {
       if (!text) return;
 
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
-      const photoSrc = photo ? photoUrl(photo, 'lg') : '';
-      // sendPhoto по URL первого фото; если Telegram не дотянулся (localhost-dev) — текстом
-      if (event === 'published' && photoSrc.startsWith('http')) {
-        const ok = await this.api(token, 'sendPhoto', {
-          chat_id: chatId,
-          photo: photoSrc,
-          caption: text,
-          parse_mode: 'HTML',
+      // sendPhoto файлом (multipart): качаем фото на стороне API и шлём телом запроса.
+      // Так Telegram'у не нужен доступ к нашему URL, а JPEG он принимает в отличие от WebP.
+      if (event === 'published' && photo) {
+        const jpeg = await this.fetchPhotoJpeg(photo).catch((e) => {
+          this.logger.warn(`fetchPhotoJpeg(${photo.id}) failed: ${(e as Error).message}`);
+          return null;
         });
-        if (ok) return;
+        if (jpeg) {
+          const ok = await this.sendPhotoMultipart(token, chatId, jpeg, text);
+          if (ok) return;
+        }
       }
       await this.api(token, 'sendMessage', {
         chat_id: chatId,
@@ -247,6 +248,46 @@ export class TelegramService {
     } as RequestInit);
     if (!res.ok) {
       this.logger.warn(`${method} → ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Качает фото (из MinIO по внутреннему адресу или из externalUrl) и конвертит в JPEG.
+   * Внутренний адрес не зависит от внешней доступности сервера для Telegram.
+   */
+  private async fetchPhotoJpeg(photo: { objectKey: string; externalUrl: string | null }): Promise<Buffer> {
+    let src: string;
+    if (photo.externalUrl) {
+      src = photo.externalUrl;
+    } else {
+      const endpoint = (process.env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '');
+      const bucket = process.env.S3_BUCKET ?? 'lots';
+      src = `${endpoint}/${bucket}/${photo.objectKey}_lg.webp`;
+    }
+    const res = await fetch(src, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`fetch ${res.status}`);
+    const input = Buffer.from(await res.arrayBuffer());
+    return sharp(input).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  }
+
+  /** Отправка фото файлом (multipart). true — доставлено. */
+  private async sendPhotoMultipart(token: string, chatId: string, jpeg: Buffer, caption: string): Promise<boolean> {
+    const dispatcher = this.getDispatcher();
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', caption);
+    form.append('parse_mode', 'HTML');
+    form.append('photo', new Blob([jpeg], { type: 'image/jpeg' }), 'photo.jpg');
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      body: form, // content-type/boundary выставит fetch сам
+      signal: AbortSignal.timeout(20_000),
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
+    if (!res.ok) {
+      this.logger.warn(`sendPhoto(multipart) → ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return false;
     }
     return true;
