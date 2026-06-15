@@ -17,14 +17,15 @@ export function DealsPage() {
   const [page, setPage] = useState(1);
   const { data } = useDeals(page);
   const deals = data?.items ?? [];
-  const feeRate = deals[0]?.feeRate;
-  const feeHead = feeRate ? `Комиссия ${(feeRate * 100).toLocaleString('ru-RU')}%` : 'Комиссия';
+  // Процент комиссии у каждой сделки свой (снимок на момент продажи) — показываем
+  // его в каждой строке, а не в заголовке.
+  const pct = (r: number) => `${(r * 100).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%`;
   return (
     <div className="content fade">
       <div className="pcard">
         <div className="ph"><div><h3>Сделки после победы</h3><div className="sub">сопровождение выигранных лотов · контакты победителя</div></div></div>
         <table className="tb">
-          <thead><tr><th>Автомобиль</th><th>Победитель</th><th>Цена</th><th>{feeHead}</th><th>К оплате</th><th>Статус</th><th></th></tr></thead>
+          <thead><tr><th>Автомобиль</th><th>Победитель</th><th>Цена</th><th>Комиссия</th><th>К оплате</th><th>Статус</th><th></th></tr></thead>
           <tbody>
             {deals.length === 0 ? (
               <tr><td className="empty" colSpan={7}>Сделок пока нет</td></tr>
@@ -45,7 +46,9 @@ export function DealsPage() {
                     <div className="num" style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 4 }}>{d.winner.phone ?? '—'}</div>
                   </td>
                   <td data-label="Цена" className="num" style={{ fontWeight: 600 }}>{fmt(d.amount)} ₽</td>
-                  <td data-label="Комиссия" className="num" style={{ color: 'var(--gold)' }}>{fmt(d.feeAmount)} ₽</td>
+                  <td data-label="Комиссия" className="num" style={{ color: 'var(--gold)' }}>
+                    {fmt(d.feeAmount)} ₽ <span style={{ color: 'var(--faint)', fontSize: 11.5 }}>· {pct(d.feeRate)}</span>
+                  </td>
                   <td data-label="К оплате" className="num" style={{ fontWeight: 600 }}>{fmt(d.amount + d.feeAmount)} ₽</td>
                   <td data-label="Статус"><span className={`sb ${DEAL_STATUS[d.status][1]}`}>{DEAL_STATUS[d.status][0]}</span></td>
                   <td>
