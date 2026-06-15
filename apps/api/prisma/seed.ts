@@ -251,36 +251,44 @@ async function main() {
   }
 
   // ── Демо-сделки в разных статусах (для дашборда: воронка + комиссия + date-range) ──
-  // Берём лоты с историей ставок, у которых ещё нет сделки, и раскидываем по этапам.
-  const dealtLotIds = new Set((await prisma.deal.findMany({ select: { lotId: true } })).map((d) => d.lotId));
-  const candidates = (
-    await prisma.lot.findMany({
-      where: { bidCount: { gt: 0 } },
-      include: { _count: { select: { bids: true } } },
-      orderBy: { endsAt: 'desc' },
-    })
-  ).filter((lot) => !dealtLotIds.has(lot.id) && lot._count.bids > 0);
-
-  // status, сколько дней назад «выдана» (для delivered), иначе closedAt = null
-  const demo: Array<{ status: 'won' | 'contacted' | 'signed' | 'delivered' | 'cancelled'; deliveredDaysAgo?: number }> = [
-    { status: 'delivered', deliveredDaysAgo: 1 },
-    { status: 'delivered', deliveredDaysAgo: 5 },
-    { status: 'delivered', deliveredDaysAgo: 20 },
-    { status: 'signed' },
-    { status: 'contacted' },
-    { status: 'won' },
-    { status: 'cancelled' },
+  // Создаём ОТДЕЛЬНЫЕ завершённые (sold) лоты в прошлом со своей ставкой и сделкой.
+  // Так движок их не трогает (endsAt в прошлом, статус терминальный) и нет конфликта
+  // Unique(lot_id) с авто-закрытием live-лотов.
+  const demo: Array<{ status: 'won' | 'contacted' | 'signed' | 'delivered' | 'cancelled'; price: number; deliveredDaysAgo?: number }> = [
+    { status: 'delivered', price: 4_200_000, deliveredDaysAgo: 1 },
+    { status: 'delivered', price: 6_800_000, deliveredDaysAgo: 5 },
+    { status: 'delivered', price: 3_500_000, deliveredDaysAgo: 20 },
+    { status: 'signed', price: 5_100_000 },
+    { status: 'contacted', price: 2_900_000 },
+    { status: 'won', price: 7_400_000 },
+    { status: 'cancelled', price: 3_100_000 },
   ];
-  for (let i = 0; i < Math.min(demo.length, candidates.length); i++) {
-    const lot = candidates[i];
+  for (let i = 0; i < demo.length; i++) {
     const d = demo[i];
-    const topBid = await prisma.bid.findFirst({ where: { lotId: lot.id }, orderBy: { amount: 'desc' } });
-    if (!topBid) continue;
+    const winner = buyers[i % buyers.length];
+    const endsAt = new Date(now - (30 + i) * 86_400_000); // в прошлом
+    const lot = await prisma.lot.create({
+      data: {
+        make: 'Demo', family: 'Sedan', model: `Сделка ${i + 1}`, year: 2021,
+        status: 'sold', published: true,
+        startPrice: BigInt(Math.round(d.price * 0.8)), reservePrice: BigInt(Math.round(d.price * 0.9)),
+        currentPrice: BigInt(d.price), reserveMet: true,
+        startsAt: new Date(endsAt.getTime() - 86_400_000), endsAt, originalEndsAt: endsAt,
+        bidCount: 1, watchersCount: 0,
+        mileage: 50_000, engine: '2.0', power: 150, fuel: 'бензин',
+        transmission: 'автомат', drive: 'передний', body: 'седан', color: 'чёрный',
+        vin: `DEMO${i}${'0'.repeat(13)}`.slice(0, 17), description: 'Демо-лот для статистики', options: [],
+      },
+    });
+    const bid = await prisma.bid.create({
+      data: { lotId: lot.id, userId: winner.id, amount: BigInt(d.price), clientBidId: crypto.randomUUID(), createdAt: endsAt },
+    });
+    await prisma.lot.update({ where: { id: lot.id }, data: { currentBidId: bid.id } });
     await prisma.deal.create({
       data: {
-        lotId: lot.id, winnerUserId: topBid.userId, winningBidId: topBid.id,
-        amount: topBid.amount, feeRate: 0.015,
-        feeAmount: BigInt(Math.round(Number(topBid.amount) * 0.015)),
+        lotId: lot.id, winnerUserId: winner.id, winningBidId: bid.id,
+        amount: BigInt(d.price), feeRate: 0.015,
+        feeAmount: BigInt(Math.round(d.price * 0.015)),
         status: d.status, managerId: manager.id,
         closedAt: d.deliveredDaysAgo != null ? new Date(now - d.deliveredDaysAgo * 86_400_000) : null,
       },
