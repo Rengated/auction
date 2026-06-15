@@ -52,7 +52,7 @@ export function DealDetailPage() {
                 </div>
               </div>
             </div>
-            <div style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="col2-mobile" style={{ padding: '0 20px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {deal.winner.phone && (
                 <a href={`tel:${deal.winner.phone.replace(/\s/g, '')}`} className="btn" style={{ justifyContent: 'flex-start', textDecoration: 'none' }}>
                   <Ic d={AI.phone} s={16} /> {deal.winner.phone}
@@ -70,7 +70,7 @@ export function DealDetailPage() {
           <div className="pcard">
             <div className="ph"><div><h3>Статус сделки</h3><div className="sub">сопровождение менеджером</div></div></div>
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="deal-status-steps" style={{ display: 'flex', gap: 8 }}>
                 {STATUS_ORDER.map((s) => {
                   const active = deal.status === s;
                   const color = s === 'delivered' ? 'var(--ok)' : s === 'cancelled' ? 'var(--dim)' : 'var(--gold)';

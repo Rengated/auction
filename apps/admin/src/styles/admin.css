@@ -208,6 +208,10 @@ table.tb .empty{padding:40px 20px;text-align:center;color:var(--faint);}
   /* компактнее табы/кнопки, чтобы помещалось больше на узком экране */
   .pcard .ph .btn.sm{padding:7px 11px;font-size:12px;}
 
+  /* воронка статусов сделки: 5 кнопок не влезают в ряд — раскладываем сеткой 2 кол. */
+  .deal-status-steps{display:grid !important;grid-template-columns:1fr 1fr;gap:8px;}
+  .deal-status-steps .btn{flex:none !important;}
+
   /* шапка формы (назад + заголовок + действия): действия переносятся вниз на всю ширину */
   .form-head{flex-wrap:wrap;}
   .form-head-title{flex:1 1 auto;min-width:0;}
