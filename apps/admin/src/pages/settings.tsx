@@ -40,6 +40,16 @@ const NOTIF_LABELS: Record<NotificationEvent, string> = {
   deal_update: 'Статус сделки',
 };
 
+/** События лота, постящиеся в TG-канал (ключи совпадают с TgLotEvent на бэке). */
+const TG_EVENTS = ['published', 'opened', 'sold', 'finished', 'withdrawn'] as const;
+const TG_EVENT_LABELS: Record<(typeof TG_EVENTS)[number], string> = {
+  published: 'Новый лот (опубликован)',
+  opened: 'Старт торгов',
+  sold: 'Продан',
+  finished: 'Торги завершены',
+  withdrawn: 'Снят с торгов',
+};
+
 export function SettingsPage() {
   const { data } = useSettings();
   const save = useSaveSettings();
@@ -271,7 +281,7 @@ export function SettingsPage() {
                   placeholder="@hermes_trade или -100…"
                 />
               </div>
-              <div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label className="fld-l">Контакт под постом</label>
                 <input
                   className="in"
@@ -280,17 +290,22 @@ export function SettingsPage() {
                   placeholder="@example"
                 />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="fld-l">Подпись под постом</label>
-                <textarea
-                  className="in"
-                  value={form.telegramFooter}
-                  onChange={(e) => up({ telegramFooter: e.target.value })}
-                  placeholder="Ставка принимается от зарегистрированных участников"
-                />
-              </div>
             </div>
-            <div className="hint">бот публикует события лотов в канал; оставьте пустым, чтобы выключить</div>
+            <div className="hint">бот публикует события лотов в канал; оставьте токен/ID пустыми, чтобы выключить</div>
+            <div style={{ marginTop: 18 }}>
+              <label className="fld-l">Какие события постить</label>
+              {TG_EVENTS.map((k) => (
+                <div className="set-row" key={k}>
+                  <div className="info"><div className="t">{TG_EVENT_LABELS[k]}</div></div>
+                  <div className="ctl">
+                    <div
+                      className={`tg ${form.tgEventToggles[k] !== false ? 'on' : ''}`}
+                      onClick={() => up({ tgEventToggles: { ...form.tgEventToggles, [k]: form.tgEventToggles[k] === false } })}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

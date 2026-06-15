@@ -259,8 +259,8 @@ model Settings {
   telegramChannelId    String  @default("") @map("telegram_channel_id")
   /** Контакт-подпись под TG-постами (например @optimaselect) */
   telegramContact      String  @default("") @map("telegram_contact")
-  /** Настраиваемая строка-подпись под TG-постами */
-  telegramFooter       String  @default("Ставка принимается от зарегистрированных участников") @map("telegram_footer")
+  /** Какие события лота постить в TG-канал (ключи published/opened/sold/finished/withdrawn). Пусто = постить всё. */
+  tgEventToggles       Json    @default("{}") @map("tg_event_toggles")
 
   @@map("settings")
 }

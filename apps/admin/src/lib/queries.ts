@@ -97,7 +97,7 @@ export interface AdminSettings {
   telegramBotToken: string;
   telegramChannelId: string;
   telegramContact: string;
-  telegramFooter: string;
+  tgEventToggles: Record<string, boolean>;
 }
 
 export interface DashboardData {

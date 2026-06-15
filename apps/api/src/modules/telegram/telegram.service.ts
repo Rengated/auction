@@ -93,9 +93,13 @@ export class TelegramService {
       const chatId = s.telegramChannelId.trim();
       if (!token || !chatId) return;
 
+      // Тоглы событий: пусто/нет ключа = постить (по умолчанию включено), false = пропустить.
+      const toggles = (s.tgEventToggles ?? {}) as Record<string, boolean>;
+      if (toggles[event] === false) return;
+
       const lot = await this.prisma.lot.findUnique({ where: { id: lotId }, include: { photos: true } });
       if (!lot) return;
-      const { text, replyMarkup } = this.buildText(event, lot, s.telegramContact, s.telegramFooter, extra);
+      const { text, replyMarkup } = this.buildText(event, lot, s.telegramContact, extra);
       if (!text) return;
 
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
@@ -150,7 +154,6 @@ export class TelegramService {
       options: unknown;
     },
     contact: string,
-    footer: string,
     extra?: { finalPrice?: number },
   ): { text: string; replyMarkup: object } {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -228,13 +231,10 @@ export class TelegramService {
       L.push(`<blockquote expandable>${esc(clipped)}</blockquote>`);
     }
 
-    // ── Подвал: контакт + подпись ──
-    const foot: string[] = [];
-    if (contact.trim()) foot.push(esc(contact.trim()));
-    if (footer.trim()) foot.push(esc(footer.trim()));
-    if (foot.length) {
+    // ── Подвал: контакт ──
+    if (contact.trim()) {
       L.push('');
-      L.push(`<i>${foot.join('\n')}</i>`);
+      L.push(`<i>${esc(contact.trim())}</i>`);
     }
 
     const cta = event === 'sold' || event === 'finished' || event === 'withdrawn' ? 'Открыть карточку лота' : 'Перейти к лоту';
