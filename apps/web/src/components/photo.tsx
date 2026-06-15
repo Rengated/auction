@@ -67,16 +67,31 @@ export function Carousel({
     e?.stopPropagation();
     setI((p) => (p + d + slides) % slides);
   };
-  // Свайп пальцем на мобильном (порог 40px по горизонтали)
-  const touchX = useRef<number | null>(null);
+  // Свайп по горизонтали (порог 40px): пальцем на мобильном и мышью на десктопе.
+  const dragX = useRef<number | null>(null);
+  const commitSwipe = (dx: number) => {
+    if (slides <= 1) return;
+    if (Math.abs(dx) > 40) setI((p) => (p + (dx < 0 ? 1 : -1) + slides) % slides);
+  };
   const onTouchStart = (e: React.TouchEvent) => {
-    touchX.current = e.touches[0].clientX;
+    dragX.current = e.touches[0].clientX;
   };
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchX.current === null || slides <= 1) return;
-    const dx = e.changedTouches[0].clientX - touchX.current;
-    touchX.current = null;
-    if (Math.abs(dx) > 40) setI((p) => (p + (dx < 0 ? 1 : -1) + slides) % slides);
+    if (dragX.current === null) return;
+    const dx = e.changedTouches[0].clientX - dragX.current;
+    dragX.current = null;
+    commitSwipe(dx);
+  };
+  // Мышь (pointer): тянем по горизонтали. Тач-события идут отдельной парой выше.
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    dragX.current = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'mouse' || dragX.current === null) return;
+    const dx = e.clientX - dragX.current;
+    dragX.current = null;
+    commitSwipe(dx);
   };
   const arrow = (side: 'left' | 'right'): CSSProperties => ({
     position: 'absolute', top: '50%', [side]: 12, transform: 'translateY(-50%)', zIndex: 4,
@@ -88,9 +103,11 @@ export function Carousel({
   const isVideo = cur?.kind === 'video';
   return (
     <div
-      style={{ position: 'relative', touchAction: 'pan-y', ...style }}
+      style={{ position: 'relative', touchAction: 'pan-y', cursor: slides > 1 ? 'grab' : undefined, ...style }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
     >
       {isVideo ? (
         <div className="photo" style={{ height: h, borderRadius: radius }}>

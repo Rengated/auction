@@ -292,6 +292,13 @@ function NotifList({ mobile }: { mobile: boolean }) {
               <button className="chip" onClick={() => markAll.mutate()} disabled={markAll.isPending}>Прочитать все</button>
             )}
           </div>
+          <div
+            style={{
+              display: 'flex', flexDirection: 'column', gap: 10,
+              // На десктопе список ограничен по высоте и скроллится; на мобиле скролл даёт .body
+              ...(mobile ? {} : { maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', overscrollBehavior: 'contain', paddingRight: 4 }),
+            }}
+          >
           {groups.map(([label, list]) => (
             <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="eyebrow" style={{ margin: '6px 2px 0' }}>{label}</div>
@@ -320,6 +327,7 @@ function NotifList({ mobile }: { mobile: boolean }) {
               })}
             </div>
           ))}
+          </div>
         </>
       )}
     </div>
@@ -349,7 +357,10 @@ function WonList({ mobile }: { mobile: boolean }) {
         const [label, color] = status(row);
         return (
           <div key={row.lot.id} className="card" style={{ padding: mobile ? 12 : 14 }}>
-            <div style={{ display: 'flex', gap: mobile ? 13 : 15, alignItems: 'center' }}>
+            <div
+              onClick={() => navigate(`/lots/${row.lot.id}`)}
+              style={{ display: 'flex', gap: mobile ? 13 : 15, alignItems: 'center', cursor: 'pointer' }}
+            >
               <Photo src={row.lot.photos[0]?.card ?? null} h={mobile ? 62 : 70} glyph={row.lot.make[0]} style={{ width: mobile ? 84 : 100, flex: 'none', borderRadius: 9 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: mobile ? 15 : 16, fontWeight: 600 }}>{row.lot.make} {row.lot.model}</div>
