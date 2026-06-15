@@ -54,8 +54,18 @@ const ratePct = (rate: number): string => String(Math.round(rate * 10000) / 100)
 
 /** «58 000» → 58000; пустая/нечисловая строка → NaN. */
 const num = (s: string): number => parseInt(s.replace(/[^\d]/g, ''), 10);
-/** ISO → значение для input type="datetime-local". */
-const isoToLocal = (iso: string): string => (iso ? iso.slice(0, 16) : '');
+/**
+ * ISO (UTC) → значение для input type="datetime-local" (YYYY-MM-DDTHH:mm) в ЛОКАЛЬНОМ
+ * поясе. Нельзя резать строку: ISO в UTC, а инпут наивный — иначе при перезаходе
+ * время сдвигается на величину пояса. Конвертируем через локальные геттеры Date.
+ */
+const isoToLocal = (iso: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 
 export function LotFormPage({ relist }: { relist?: boolean }) {
   const { id } = useParams<{ id: string }>();
