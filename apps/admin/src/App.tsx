@@ -14,6 +14,7 @@ import { AuctionControlPage } from './pages/auction-control';
 import { DealsPage } from './pages/deals';
 import { DealDetailPage } from './pages/deal-detail';
 import { UsersPage } from './pages/users';
+import { StaffPage } from './pages/staff';
 import { SettingsPage } from './pages/settings';
 
 function Login({ denied }: { denied?: boolean }) {
@@ -118,6 +119,8 @@ function Sidebar() {
     ['/auctions', 'Торги', AI.gavel, liveN || null],
     ['/deals', 'Сделки', AI.deals, null],
     ['/users', 'Пользователи', AI.users, null],
+    // Персонал — только администратору
+    ...(me?.role === 'admin' ? ([['/staff', 'Персонал', AI.users, null]] as const) : []),
     ['/settings', 'Параметры', AI.gear, null],
   ] as const;
   const active = (p: string) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p));
@@ -166,6 +169,7 @@ const TITLES: Array<[string, string, string]> = [
   ['/auctions', 'Управление', 'Торги'],
   ['/deals', 'Управление', 'Сделки'],
   ['/users', 'Управление', 'Пользователи'],
+  ['/staff', 'Управление', 'Персонал'],
   ['/settings', 'Управление', 'Параметры аукциона'],
   ['/', 'Hermes Trade', 'Дашборд'],
 ];
@@ -225,6 +229,7 @@ export function App() {
             <Route path="/deals" element={<DealsPage />} />
             <Route path="/deals/:id" element={<DealDetailPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/staff" element={<StaffPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

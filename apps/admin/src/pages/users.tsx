@@ -3,12 +3,10 @@ import { PAGE_LIMITS } from '@hermes/shared';
 import { AI, Ic } from '../components/icons';
 import { Pagination } from '../components/pagination';
 import {
-  useCreateStaff,
+  useArchiveUser,
   useDeleteUser,
   useMe,
-  usePatchStaff,
   usePatchUser,
-  useSetStaffPassword,
   useUsers,
   type AdminUser,
   type UsersFilter,
@@ -170,195 +168,22 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
   );
 }
 
-function StaffCreateForm({ onDone }: { onDone: () => void }) {
-  const create = useCreateStaff();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<'manager' | 'admin'>('manager');
-  const [error, setError] = useState('');
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (create.isPending) return;
-    setError('');
-    if (password.length < 6) {
-      setError('Пароль должен быть не короче 6 символов');
-      return;
-    }
-    create.mutate(
-      { username: username.trim(), password, displayName: displayName.trim(), role },
-      {
-        onSuccess: onDone,
-        onError: (err) => setError(err.message || 'Не удалось создать сотрудника'),
-      },
-    );
-  };
-
-  return (
-    <form onSubmit={submit} style={{ padding: 20 }}>
-      <div className="form-grid">
-        <div>
-          <label className="fld-l">Логин</label>
-          <input className="in" autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} />
-        </div>
-        <div>
-          <label className="fld-l">Пароль</label>
-          <input className="in" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        <div>
-          <label className="fld-l">Имя</label>
-          <input className="in" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-        </div>
-        <div>
-          <label className="fld-l">Роль</label>
-          <select className="in" value={role} onChange={(e) => setRole(e.target.value as 'manager' | 'admin')}>
-            <option value="manager">Менеджер</option>
-            <option value="admin">Админ</option>
-          </select>
-        </div>
-      </div>
-      {error && <div style={{ font: '500 13px/1.4 var(--ui)', color: 'var(--live)', marginTop: 14 }}>{error}</div>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-        <button type="button" className="btn ghost" onClick={onDone}>Отмена</button>
-        <button type="submit" className="btn acc" disabled={create.isPending || !username.trim() || !password || !displayName.trim()}>
-          {create.isPending ? 'Создание…' : 'Создать'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function StaffPasswordForm({ user, onDone }: { user: AdminUser; onDone: () => void }) {
-  const setPw = useSetStaffPassword(user.id);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (setPw.isPending) return;
-    setError('');
-    if (password.length < 6) {
-      setError('Пароль должен быть не короче 6 символов');
-      return;
-    }
-    setPw.mutate({ password }, { onSuccess: onDone, onError: (err) => setError(err.message || 'Ошибка') });
-  };
-
-  return (
-    <form onSubmit={submit} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <input
-        className="in"
-        type="password"
-        autoFocus
-        autoComplete="new-password"
-        placeholder="Новый пароль"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ width: 180 }}
-      />
-      <button type="submit" className="btn acc sm" disabled={setPw.isPending || !password}>Сохранить</button>
-      <button type="button" className="btn ghost sm" onClick={onDone}>Отмена</button>
-      {error && <span style={{ font: '500 12.5px/1.3 var(--ui)', color: 'var(--live)' }}>{error}</span>}
-    </form>
-  );
-}
-
-function StaffEditForm({ user, onDone }: { user: AdminUser; onDone: () => void }) {
-  const patchStaff = usePatchStaff();
-  const toast = useToast();
-  const [name, setName] = useState(user.name);
-  const [role, setRole] = useState<'manager' | 'admin'>(user.role === 'admin' ? 'admin' : 'manager');
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (patchStaff.isPending || !name.trim()) return;
-    patchStaff.mutate(
-      { id: user.id, displayName: name.trim(), role },
-      { onSuccess: () => { toast.ok('Сотрудник обновлён'); onDone(); }, onError: (err) => toast.error(err.message) },
-    );
-  };
-
-  return (
-    <form onSubmit={submit} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <input className="in" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" style={{ width: 160 }} />
-      <select className="in" value={role} onChange={(e) => setRole(e.target.value as 'manager' | 'admin')} style={{ width: 130 }}>
-        <option value="manager">Менеджер</option>
-        <option value="admin">Админ</option>
-      </select>
-      <button type="submit" className="btn acc sm" disabled={patchStaff.isPending || !name.trim()}>Сохранить</button>
-      <button type="button" className="btn ghost sm" onClick={onDone}>Отмена</button>
-    </form>
-  );
-}
-
-function StaffPanel() {
-  // Фильтр 'manager' на бэке = role in (manager, admin) = ровно штат
-  const { data } = useUsers('manager');
-  const staff = data?.items ?? [];
-  const [creating, setCreating] = useState(false);
-  const [pwFor, setPwFor] = useState<string | null>(null);
-  const [editFor, setEditFor] = useState<string | null>(null);
-
-  return (
-    <div className="pcard">
-      <div className="ph" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div><h3>Персонал</h3><div className="sub">менеджеры и администраторы салона</div></div>
-        {!creating && (
-          <button className="btn acc sm" onClick={() => setCreating(true)}>Добавить сотрудника</button>
-        )}
-      </div>
-      {creating && <StaffCreateForm onDone={() => setCreating(false)} />}
-      <table className="tb">
-        <thead><tr><th>Сотрудник</th><th>Логин</th><th>Роль</th><th></th></tr></thead>
-        <tbody>
-          {staff.length === 0 ? (
-            <tr><td className="empty" colSpan={4}>Сотрудников нет</td></tr>
-          ) : (
-            staff.map((u) => (
-              <tr className="row" key={u.id}>
-                <td>
-                  <div className="lotcell">
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-soft)', display: 'grid', placeItems: 'center', font: '700 14px/1 var(--num)', color: 'var(--accent)', flex: 'none' }}>
-                      {u.name[0]}
-                    </div>
-                    <div><div className="nm">{u.name}</div></div>
-                  </div>
-                </td>
-                <td className="num" style={{ color: 'var(--dim)' }}>{u.username ?? '—'}</td>
-                <td>
-                  <span className="sb" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>{ROLE_LABEL[u.role]}</span>
-                </td>
-                <td>
-                  {editFor === u.id ? (
-                    <StaffEditForm user={u} onDone={() => setEditFor(null)} />
-                  ) : pwFor === u.id ? (
-                    <StaffPasswordForm user={u} onDone={() => setPwFor(null)} />
-                  ) : (
-                    <div className="row-actions">
-                      <button className="btn ghost sm" onClick={() => { setEditFor(u.id); setPwFor(null); }}>Изменить</button>
-                      <button className="btn ghost sm" onClick={() => { setPwFor(u.id); setEditFor(null); }}>Сменить пароль</button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function UsersPage() {
   const { data: me } = useMe();
   const isAdmin = me?.role === 'admin';
   const delUser = useDeleteUser();
+  const archive = useArchiveUser();
+  const toast = useToast();
   const removeUser = (u: AdminUser) => {
     if (u.id === me?.id) return;
     if (!window.confirm(`Удалить пользователя ${u.name}? Действие необратимо.`)) return;
-    delUser.mutate(u.id, { onError: (e) => window.alert(e.message) });
+    delUser.mutate(u.id, { onSuccess: () => toast.ok('Пользователь удалён'), onError: (e) => toast.error(e.message) });
   };
+  const toggleArchive = (u: AdminUser) =>
+    archive.mutate(
+      { id: u.id, archived: !u.archived },
+      { onSuccess: () => toast.ok(u.archived ? 'Разархивирован' : 'Архивирован'), onError: (e) => toast.error(e.message) },
+    );
   const [f, setF] = useState<UsersFilter>('all');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<AdminUser | null>(null);
@@ -369,7 +194,7 @@ export function UsersPage() {
     setF(nf);
     setPage(1);
   };
-  const tabs: Array<[UsersFilter, string]> = [['all', 'Все'], ['buyer', 'Покупатели'], ['manager', 'Команда'], ['blocked', 'Заблокированные']];
+  const tabs: Array<[UsersFilter, string]> = [['all', 'Все'], ['buyer', 'Покупатели'], ['blocked', 'Заблокированные'], ['archived', 'Архив']];
 
   if (selected) {
     return (
@@ -381,7 +206,6 @@ export function UsersPage() {
 
   return (
     <div className="content fade" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {isAdmin && <StaffPanel />}
       <div className="pcard">
         <div className="ph">
           <div style={{ display: 'flex', gap: 7 }}>
@@ -447,6 +271,16 @@ export function UsersPage() {
                           {AI.ban}
                         </button>
                         <button className="iconbtn2" title="Карточка" onClick={() => setSelected(u)}>{AI.eye}</button>
+                        {u.id !== me?.id && (
+                          <button
+                            className="btn ghost sm"
+                            title={u.archived ? 'Разархивировать' : 'В архив'}
+                            disabled={archive.isPending}
+                            onClick={() => toggleArchive(u)}
+                          >
+                            {u.archived ? 'Из архива' : 'В архив'}
+                          </button>
+                        )}
                         {isAdmin && u.id !== me?.id && (
                           <button
                             className="iconbtn2"

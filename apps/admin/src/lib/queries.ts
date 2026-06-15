@@ -81,6 +81,7 @@ export interface AdminUser {
   blockedUntil: string | null;
   blockPermanent: boolean;
   blockReason: string | null;
+  archived: boolean;
   bids: number;
   wins: number;
   joined: string;
@@ -206,7 +207,7 @@ export const useDeals = (page = 1) =>
 export const useDeal = (id: string | undefined) =>
   useQuery<AdminDeal>({ queryKey: ['deal', id], queryFn: () => get(`/admin/deals/${id}`), enabled: Boolean(id) });
 
-export type UsersFilter = 'all' | 'buyer' | 'manager' | 'blocked';
+export type UsersFilter = 'all' | 'buyer' | 'manager' | 'blocked' | 'archived';
 
 export const useUsers = (filter: UsersFilter = 'all', page = 1) =>
   useQuery<Page<AdminUser>>({
@@ -397,6 +398,15 @@ export function useDeleteUser() {
   const qc = useQueryClient();
   return useMutation<{ ok: true }, ApiError, string>({
     mutationFn: (id) => del(`/admin/users/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
+/** Архивировать / разархивировать пользователя (мягкое скрытие). */
+export function useArchiveUser() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: true }, ApiError, { id: string; archived: boolean }>({
+    mutationFn: ({ id, archived }) => post(`/admin/users/${id}/${archived ? 'archive' : 'unarchive'}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 }
