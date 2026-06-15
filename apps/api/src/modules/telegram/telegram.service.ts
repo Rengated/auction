@@ -95,7 +95,7 @@ export class TelegramService {
 
       const lot = await this.prisma.lot.findUnique({ where: { id: lotId }, include: { photos: true } });
       if (!lot) return;
-      const text = this.buildText(event, lot, s.telegramContact, s.telegramFooter, extra);
+      const { text, replyMarkup } = this.buildText(event, lot, s.telegramContact, s.telegramFooter, extra);
       if (!text) return;
 
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
@@ -108,7 +108,7 @@ export class TelegramService {
           return null;
         });
         if (jpeg) {
-          const ok = await this.sendPhotoMultipart(token, chatId, jpeg, text);
+          const ok = await this.sendPhotoMultipart(token, chatId, jpeg, text, replyMarkup);
           if (ok) return;
         }
       }
@@ -117,13 +117,18 @@ export class TelegramService {
         text,
         parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
+        reply_markup: replyMarkup,
       });
     } catch (e) {
       this.logger.warn(`announceLot(${event}, ${lotId}) failed: ${(e as Error).message}`);
     }
   }
 
-  /** Стильный продающий пост с HTML-разметкой (parse_mode=HTML). */
+  /**
+   * Пост лота: строгий деловой тон, HTML-разметка (parse_mode=HTML).
+   * Характеристики — в <blockquote>, описание — в <blockquote expandable>.
+   * Возвращает caption (≤1024 для фото) и inline-кнопку «Перейти к лоту».
+   */
   private buildText(
     event: TgLotEvent,
     lot: {
@@ -141,11 +146,13 @@ export class TelegramService {
       currentPrice: bigint;
       startsAt: Date;
       addressText: string | null;
+      description: string;
+      options: unknown;
     },
     contact: string,
     footer: string,
     extra?: { finalPrice?: number },
-  ): string {
+  ): { text: string; replyMarkup: object } {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const webOrigin = (process.env.WEB_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, '');
     const lotNo = lot.id.slice(0, 6).toUpperCase();
@@ -162,78 +169,78 @@ export class TelegramService {
 
     const L: string[] = [];
 
-    // ── Заголовок-плашка по событию (продающий тон) ──
-    switch (event) {
-      case 'published':
-        L.push(`🔥 <b>${title}</b>`);
-        break;
-      case 'opened':
-        L.push(`🟢 <b>Торги идут — ${title}</b>`);
-        break;
-      case 'sold':
-        L.push(`✅ <b>ПРОДАН — ${title}</b>`);
-        break;
-      case 'finished':
-        L.push(`⚪️ <b>Торги завершены — ${title}</b>`);
-        break;
-      case 'withdrawn':
-        L.push(`⚪️ <b>Снят с торгов — ${title}</b>`);
-        break;
-    }
-    L.push(`<i>Лот #${lotNo}</i>`);
+    // ── Статус-надзаголовок (сдержанно, словами, без emoji-плашек) ──
+    const status: Record<TgLotEvent, string> = {
+      published: 'НОВЫЙ ЛОТ',
+      opened: 'ИДУТ ТОРГИ',
+      sold: 'ПРОДАН',
+      finished: 'ТОРГИ ЗАВЕРШЕНЫ',
+      withdrawn: 'СНЯТ С ТОРГОВ',
+    };
+    L.push(`<b>${status[event]}</b>  ·  <i>Лот #${lotNo}</i>`);
+    L.push(`<b>${title}</b>`);
     L.push('');
 
-    // ── Характеристики (всегда) ──
-    L.push(`📊 ${fmt(lot.mileage)} км · ${esc(lot.engine)} · ${lot.power} л.с.`);
-    L.push(`⚙️ ${esc(lot.transmission)}, ${esc(lot.drive)}, ${esc(lot.fuel)}`);
-    if (lot.addressText) L.push(`📍 ${esc(lot.addressText)}`);
-    L.push('');
-
-    // ── Цена + призыв к действию по событию ──
+    // ── Цена / время по событию ──
     switch (event) {
       case 'published':
-        L.push(`💰 Стартовая цена: <b>${price(Number(lot.startPrice))}</b>`);
-        L.push(`🕒 Старт торгов: <b>${startsAt} МСК</b>`);
-        L.push('');
-        L.push('⏰ Успейте сделать ставку — лот уйдёт по лучшей цене.');
+        L.push(`Стартовая цена: <b>${price(Number(lot.startPrice))}</b>`);
+        L.push(`Старт торгов: <b>${startsAt} (МСК)</b>`);
         break;
       case 'opened':
-        L.push(`💰 Текущая цена: <b>${price(Number(lot.currentPrice))}</b>`);
-        L.push('');
-        L.push('🔨 Торги в самом разгаре — сделайте ставку, пока лот доступен!');
+        L.push(`Текущая цена: <b>${price(Number(lot.currentPrice))}</b>`);
         break;
       case 'sold':
-        L.push(`💰 Цена продажи: <b>${price(extra?.finalPrice ?? Number(lot.currentPrice))}</b>`);
-        L.push('');
-        L.push('🎉 Поздравляем победителя! Следующие лоты — в нашем канале.');
+        L.push(`Цена продажи: <b>${price(extra?.finalPrice ?? Number(lot.currentPrice))}</b>`);
         break;
       case 'finished':
-        L.push('Резерв не достигнут — лот может вернуться на торги. Следите за каналом.');
+        L.push('Резерв не достигнут. Лот может вернуться на торги.');
         break;
       case 'withdrawn':
         L.push('Лот снят с торгов организатором.');
         break;
     }
-    L.push('');
 
-    // ── Кликабельная ссылка-CTA ──
-    const cta =
-      event === 'sold' || event === 'finished' || event === 'withdrawn'
-        ? 'Смотреть карточку лота'
-        : 'Смотреть лот и сделать ставку';
-    L.push(`🔗 <a href="${lotUrl}">${cta} →</a>`);
+    // ── Характеристики в цитате ──
+    const spec: string[] = [
+      `Пробег: ${fmt(lot.mileage)} км`,
+      `Двигатель: ${esc(lot.engine)}, ${lot.power} л.с., ${esc(lot.fuel)}`,
+      `Трансмиссия: ${esc(lot.transmission)}, ${esc(lot.drive)}`,
+    ];
+    if (lot.addressText) spec.push(`Местонахождение: ${esc(lot.addressText)}`);
+    L.push('');
+    L.push(`<blockquote>${spec.join('\n')}</blockquote>`);
+
+    // ── Опции (компактно, с обрезкой) ──
+    const options = Array.isArray(lot.options) ? (lot.options as unknown[]).filter((o): o is string => typeof o === 'string') : [];
+    if (options.length) {
+      const joined = options.map((o) => esc(o)).join(' · ');
+      const opts = joined.length > 220 ? `${joined.slice(0, 217)}…` : joined;
+      L.push('');
+      L.push(`<b>Комплектация:</b> ${opts}`);
+    }
+
+    // ── Описание в сворачиваемой цитате (только для новых/идущих лотов) ──
+    const desc = lot.description.trim();
+    if (desc && (event === 'published' || event === 'opened')) {
+      const clipped = desc.length > 350 ? `${desc.slice(0, 347)}…` : desc;
+      L.push('');
+      L.push(`<blockquote expandable>${esc(clipped)}</blockquote>`);
+    }
 
     // ── Подвал: контакт + подпись ──
     const foot: string[] = [];
-    if (contact.trim()) foot.push(`💬 ${esc(contact.trim())}`);
+    if (contact.trim()) foot.push(esc(contact.trim()));
     if (footer.trim()) foot.push(esc(footer.trim()));
     if (foot.length) {
       L.push('');
-      L.push('➖➖➖➖➖');
-      L.push(foot.join('\n'));
+      L.push(`<i>${foot.join('\n')}</i>`);
     }
 
-    return L.join('\n');
+    const cta = event === 'sold' || event === 'finished' || event === 'withdrawn' ? 'Открыть карточку лота' : 'Перейти к лоту';
+    const replyMarkup = { inline_keyboard: [[{ text: cta, url: lotUrl }]] };
+
+    return { text: L.join('\n'), replyMarkup };
   }
 
   /** true — доставлено; false/throw — нет (логируется выше). */
@@ -274,12 +281,19 @@ export class TelegramService {
   }
 
   /** Отправка фото файлом (multipart). true — доставлено. */
-  private async sendPhotoMultipart(token: string, chatId: string, jpeg: Buffer, caption: string): Promise<boolean> {
+  private async sendPhotoMultipart(
+    token: string,
+    chatId: string,
+    jpeg: Buffer,
+    caption: string,
+    replyMarkup?: object,
+  ): Promise<boolean> {
     const dispatcher = this.getDispatcher();
     const form = new FormData();
     form.append('chat_id', chatId);
     form.append('caption', caption);
     form.append('parse_mode', 'HTML');
+    if (replyMarkup) form.append('reply_markup', JSON.stringify(replyMarkup));
     form.append('photo', new Blob([jpeg], { type: 'image/jpeg' }), 'photo.jpg');
     const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
       method: 'POST',
