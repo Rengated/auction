@@ -243,7 +243,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
         {/* левая колонка: основные поля */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="pcard">

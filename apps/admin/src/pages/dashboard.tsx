@@ -103,12 +103,12 @@ export function DashboardPage() {
       <div className="section-gap"></div>
 
       {/* финансы + качество */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
         <div className="pcard">
           <div className="ph">
             <div><h3>Финансы</h3><div className="sub">оборот и комиссия</div></div>
           </div>
-          <div style={{ padding: '8px 20px 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div style={{ padding: '8px 20px 0', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="dash-fin3">
             <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
               <div className="l">Оборот</div>
               <div className="v">{fmt(turnover)} ₽</div>
@@ -165,7 +165,7 @@ export function DashboardPage() {
       <div className="section-gap"></div>
 
       {/* график недели + расписание */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
         <div className="pcard">
           <div className="ph">
             <div><h3>Активность за период</h3><div className="sub">ставок в день</div></div>
@@ -205,7 +205,7 @@ export function DashboardPage() {
       <div className="section-gap"></div>
 
       {/* live-таблица + лента событий */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 20, alignItems: 'start' }}>
         <div className="pcard">
           <div className="ph">
             <div><h3>Идут прямо сейчас</h3><div className="sub">требуют контроля</div></div>
@@ -225,9 +225,9 @@ export function DashboardPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="num" style={{ fontWeight: 600 }}>{fmt(l.currentPrice)} ₽</td>
-                  <td className="num">{l.bidCount}</td>
-                  <td className="num" style={{ color: 'var(--live)' }}>{fmtTime(leftSec(l.endsAt, now))}</td>
+                  <td data-label="Ставка" className="num" style={{ fontWeight: 600 }}>{fmt(l.currentPrice)} ₽</td>
+                  <td data-label="Ставок" className="num">{l.bidCount}</td>
+                  <td data-label="До конца" className="num" style={{ color: 'var(--live)' }}>{fmtTime(leftSec(l.endsAt, now))}</td>
                   <td><div className="row-actions"><button className="btn sm" onClick={() => navigate(`/auctions/${l.id}`)}>Торг</button></div></td>
                 </tr>
               ))}

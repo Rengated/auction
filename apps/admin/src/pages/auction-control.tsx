@@ -53,7 +53,7 @@ export function AuctionControlPage() {
       <div className="lc-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="pcard">
-            <div style={{ padding: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20 }}>
+            <div className="metrics4" style={{ padding: 24, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20 }}>
               <div>
                 <div className="l" style={lbl}>Текущая ставка</div>
                 <div className="num" style={{ font: '700 26px/1 var(--num)', marginTop: 12 }}>{fmt(lot.currentPrice)} ₽</div>

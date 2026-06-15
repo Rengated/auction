@@ -71,10 +71,10 @@ function UpcomingRow({ lot }: { lot: AdminLot }) {
           </div>
         </div>
       </td>
-      <td className="num" style={{ color: 'var(--gold)', fontWeight: 600 }}>{new Date(lot.startsAt).toLocaleString('ru-RU')}</td>
-      <td className="num" style={{ color: 'var(--dim)' }}>{new Date(lot.endsAt).toLocaleString('ru-RU')}</td>
-      <td className="num" style={{ color: 'var(--dim)' }}>{fmt(lot.startPrice)} ₽</td>
-      <td className="num">{fmt(lot.reservePrice)} ₽</td>
+      <td data-label="Старт" className="num" style={{ color: 'var(--gold)', fontWeight: 600 }}>{new Date(lot.startsAt).toLocaleString('ru-RU')}</td>
+      <td data-label="Окончание" className="num" style={{ color: 'var(--dim)' }}>{new Date(lot.endsAt).toLocaleString('ru-RU')}</td>
+      <td data-label="Стартовая" className="num" style={{ color: 'var(--dim)' }}>{fmt(lot.startPrice)} ₽</td>
+      <td data-label="Резерв" className="num">{fmt(lot.reservePrice)} ₽</td>
       <td>
         <div className="row-actions">
           <button className="btn sm" disabled={action.isPending} onClick={() => action.mutate({ action: 'start-now' })}>

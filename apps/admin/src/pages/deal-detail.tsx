@@ -36,7 +36,7 @@ export function DealDetailPage() {
         <span className={`sb ${statusCls}`} style={{ marginLeft: 10 }}>{statusLabel}</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* winner contacts */}
           <div className="pcard">

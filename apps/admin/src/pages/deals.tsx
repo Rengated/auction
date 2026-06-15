@@ -40,14 +40,14 @@ export function DealsPage() {
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Победитель">
                     <div style={{ fontWeight: 600 }}>{d.winner.name}</div>
                     <div className="num" style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 4 }}>{d.winner.phone ?? '—'}</div>
                   </td>
-                  <td className="num" style={{ fontWeight: 600 }}>{fmt(d.amount)} ₽</td>
-                  <td className="num" style={{ color: 'var(--gold)' }}>{fmt(d.feeAmount)} ₽</td>
-                  <td className="num" style={{ fontWeight: 600 }}>{fmt(d.amount + d.feeAmount)} ₽</td>
-                  <td><span className={`sb ${DEAL_STATUS[d.status][1]}`}>{DEAL_STATUS[d.status][0]}</span></td>
+                  <td data-label="Цена" className="num" style={{ fontWeight: 600 }}>{fmt(d.amount)} ₽</td>
+                  <td data-label="Комиссия" className="num" style={{ color: 'var(--gold)' }}>{fmt(d.feeAmount)} ₽</td>
+                  <td data-label="К оплате" className="num" style={{ fontWeight: 600 }}>{fmt(d.amount + d.feeAmount)} ₽</td>
+                  <td data-label="Статус"><span className={`sb ${DEAL_STATUS[d.status][1]}`}>{DEAL_STATUS[d.status][0]}</span></td>
                   <td>
                     <div className="row-actions">
                       <button className="btn sm" onClick={() => navigate(`/deals/${d.id}`)}>Открыть</button>

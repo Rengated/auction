@@ -106,7 +106,7 @@ function LoginForm() {
   );
 }
 
-function Sidebar() {
+function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
   const { data: me } = useMe();
   const { data: lotsPage } = useAdminLots('all');
@@ -125,7 +125,9 @@ function Sidebar() {
   ] as const;
   const active = (p: string) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p));
   return (
-    <div className="side">
+    <>
+      <div className={`side-overlay ${open ? 'on' : ''}`} onClick={onClose} />
+      <div className={`side ${open ? 'open' : ''}`}>
       <div className="logo">
         <HermesH size={34} />
         <div>
@@ -135,7 +137,7 @@ function Sidebar() {
       </div>
       <div className="side-sec">Управление</div>
       {items.map(([path, label, icon, badge]) => (
-        <Link key={path} to={path} style={{ textDecoration: 'none' }}>
+        <Link key={path} to={path} style={{ textDecoration: 'none' }} onClick={onClose}>
           <button className={`navbtn ${active(path) ? 'on' : ''}`}>
             <span className="ic">{icon}</span>
             {label}
@@ -159,7 +161,8 @@ function Sidebar() {
           </svg>
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -174,30 +177,39 @@ const TITLES: Array<[string, string, string]> = [
   ['/', 'Hermes Trade', 'Дашборд'],
 ];
 
-function Topbar() {
+function Topbar({ onBurger }: { onBurger: () => void }) {
   const location = useLocation();
   const [, crumb, title] = TITLES.find(([p]) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p))) ?? TITLES.at(-1)!;
   const date = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
   return (
     <div className="topbar">
-      <div>
+      <button className="burger" aria-label="Меню" onClick={onBurger}>
+        <svg viewBox="0 0 24 24" stroke="currentColor" fill="none" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div className="crumb">{crumb}</div>
         <h1>{title}</h1>
       </div>
-      <span className="num" style={{ fontSize: 13, color: 'var(--faint)', textTransform: 'capitalize' }}>{date}</span>
+      <span className="num topbar-date" style={{ fontSize: 13, color: 'var(--faint)', textTransform: 'capitalize' }}>{date}</span>
     </div>
   );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
   useEffect(() => {
     getSocket();
   }, []);
+  // Закрывать drawer при переходе на другую страницу
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
   return (
     <div className="admin">
-      <Sidebar />
+      <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="main">
-        <Topbar />
+        <Topbar onBurger={() => setNavOpen(true)} />
         {children}
       </div>
     </div>

@@ -108,15 +108,15 @@ export function LotsPage() {
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label="Публикация">
                   {l.published
                     ? <span className="sb sold"><span className="dot"></span> опубликован</span>
                     : <span className="sb" style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>черновик</span>}
                 </td>
-                <td><Sb s={l.published ? l.status : 'draft'} /></td>
-                <td className="num" style={{ color: 'var(--dim)' }}>{fmt(l.startPrice)} ₽</td>
-                <td className="num" style={{ fontWeight: 600 }}>{fmt(l.currentPrice)} ₽</td>
-                <td className="num">{fmt(l.reservePrice)} ₽</td>
+                <td data-label="Статус"><Sb s={l.published ? l.status : 'draft'} /></td>
+                <td data-label="Стартовая" className="num" style={{ color: 'var(--dim)' }}>{fmt(l.startPrice)} ₽</td>
+                <td data-label="Текущая" className="num" style={{ fontWeight: 600 }}>{fmt(l.currentPrice)} ₽</td>
+                <td data-label="Резерв" className="num">{fmt(l.reservePrice)} ₽</td>
                 <td>
                   <div className="row-actions">
                     {!l.published && (

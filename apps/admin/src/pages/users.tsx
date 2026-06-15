@@ -51,7 +51,7 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+      <div className="col2-mobile" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
         <div className="pcard">
           <div className="ph"><h3>Данные пользователя</h3></div>
           <div style={{ padding: 20 }}>
@@ -242,13 +242,13 @@ export function UsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="num" style={{ color: 'var(--dim)' }}>{u.phone ?? '—'}</td>
-                    <td>
+                    <td data-label="Телефон" className="num" style={{ color: 'var(--dim)' }}>{u.phone ?? '—'}</td>
+                    <td data-label="Роль">
                       <span className="sb" style={{ background: u.role === 'buyer' ? 'var(--panel3)' : 'var(--accent-soft)', color: u.role === 'buyer' ? 'var(--dim)' : 'var(--accent)' }}>
                         {ROLE_LABEL[u.role]}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Статус">
                       {blocked ? (
                         <span className="sb" style={{ background: 'var(--live-soft)', color: 'var(--live)' }}>
                           <Ic d={AI.ban} s={12} /> {blockLabel(u)}
@@ -259,7 +259,7 @@ export function UsersPage() {
                         <span className="sb fin">не пройдена</span>
                       )}
                     </td>
-                    <td className="num">{u.bids} / {u.wins}</td>
+                    <td data-label="Ставок / побед" className="num">{u.bids} / {u.wins}</td>
                     <td>
                       <div className="row-actions">
                         <button
