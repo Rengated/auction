@@ -5,7 +5,7 @@ import { SocksClient } from 'socks';
 import { fmt } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
-import { photoUrl } from '../lots/lot.mapper';
+import { photoSocialUrl } from '../lots/lot.mapper';
 
 export type TgLotEvent = 'published' | 'opened' | 'sold' | 'finished' | 'withdrawn';
 
@@ -99,7 +99,7 @@ export class TelegramService {
       if (!text) return;
 
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
-      const photoSrc = photo ? photoUrl(photo, 'lg') : '';
+      const photoSrc = photo ? photoSocialUrl(photo) : '';
       // sendPhoto по URL первого фото; если Telegram не дотянулся (localhost-dev) — текстом
       if (event === 'published' && photoSrc.startsWith('http')) {
         const ok = await this.api(token, 'sendPhoto', {

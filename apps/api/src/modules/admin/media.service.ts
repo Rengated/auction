@@ -23,8 +23,8 @@ export class MediaService {
   /** Возвращает objectKey (без суффикса размера). */
   async uploadLotPhoto(lotId: string, buffer: Buffer): Promise<string> {
     const key = `lots/${lotId}/${randomUUID()}`;
-    await Promise.all(
-      (Object.entries(SIZES) as Array<[keyof typeof SIZES, number]>).map(async ([name, width]) => {
+    await Promise.all([
+      ...(Object.entries(SIZES) as Array<[keyof typeof SIZES, number]>).map(async ([name, width]) => {
         const webp = await sharp(buffer).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
         await this.s3.send(
           new PutObjectCommand({
@@ -35,18 +35,37 @@ export class MediaService {
           }),
         );
       }),
-    );
+      // Дополнительно JPEG lg-размера для соц-превью: Telegram/og:image не едят WebP.
+      (async () => {
+        const jpeg = await sharp(buffer)
+          .rotate()
+          .resize({ width: SIZES.lg, withoutEnlargement: true })
+          .jpeg({ quality: 82, mozjpeg: true })
+          .toBuffer();
+        await this.s3.send(
+          new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: `${key}_lg.jpg`,
+            Body: jpeg,
+            ContentType: 'image/jpeg',
+          }),
+        );
+      })(),
+    ]);
     return key;
   }
 
   async deleteLotPhoto(objectKey: string): Promise<void> {
-    await Promise.all(
-      Object.keys(SIZES).map((name) =>
+    await Promise.all([
+      ...Object.keys(SIZES).map((name) =>
         this.s3
           .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: `${objectKey}_${name}.webp` }))
           .catch((e) => this.logger.warn(`delete ${objectKey}_${name}: ${e.message}`)),
       ),
-    );
+      this.s3
+        .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: `${objectKey}_lg.jpg` }))
+        .catch((e) => this.logger.warn(`delete ${objectKey}_lg.jpg: ${e.message}`)),
+    ]);
   }
 
   /** Видео хранится одним файлом как есть (транскодинга нет) — ключ с расширением. */
