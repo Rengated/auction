@@ -207,4 +207,11 @@ table.tb .empty{padding:40px 20px;text-align:center;color:var(--faint);}
   .pcard .ph>div:first-child::-webkit-scrollbar{display:none;}
   /* компактнее табы/кнопки, чтобы помещалось больше на узком экране */
   .pcard .ph .btn.sm{padding:7px 11px;font-size:12px;}
+
+  /* шапка формы (назад + заголовок + действия): действия переносятся вниз на всю ширину */
+  .form-head{flex-wrap:wrap;}
+  .form-head-title{flex:1 1 auto;min-width:0;}
+  .form-head-title h1{font-size:19px !important;}
+  .form-head-actions{margin-left:0 !important;width:100%;flex-wrap:wrap;}
+  .form-head-actions .btn{flex:1 1 auto;justify-content:center;}
 }

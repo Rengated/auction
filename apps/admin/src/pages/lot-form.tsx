@@ -199,13 +199,13 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
 
   return (
     <div className="content fade">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+      <div className="form-head" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
         <button className="iconbtn2" onClick={() => navigate('/lots')} style={{ width: 38, height: 38 }}>{AI.back}</button>
-        <div>
+        <div className="form-head-title">
           <div className="crumb">Лоты / {crumb}</div>
           <h1 style={{ font: '800 22px/1 var(--ui)', margin: 0, letterSpacing: '-0.02em' }}>{title}</h1>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+        <div className="form-head-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
           <button className="btn ghost" disabled={mutation.isPending} onClick={() => submit(false)}>Сохранить черновик</button>
           <button className="btn acc" disabled={mutation.isPending} onClick={() => submit(true)}>{accLabel}</button>
         </div>

@@ -39,13 +39,13 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+      <div className="form-head" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
         <button className="iconbtn2" onClick={onBack} style={{ width: 38, height: 38 }}>{AI.back}</button>
-        <div>
+        <div className="form-head-title">
           <div className="crumb">Пользователи / Карточка</div>
           <h1 style={{ font: '800 22px/1 var(--ui)', margin: 0, letterSpacing: '-0.02em' }}>{user.name}</h1>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+        <div className="form-head-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
           <button className="btn ghost" onClick={onBack}>Отмена</button>
           <button className="btn acc" disabled={!canSave} onClick={save}>Сохранить</button>
         </div>

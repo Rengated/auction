@@ -27,9 +27,9 @@ export function DealDetailPage() {
 
   return (
     <div className="content fade">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+      <div className="form-head" style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
         <button className="iconbtn2" onClick={() => navigate('/deals')} style={{ width: 38, height: 38 }}>{AI.back}</button>
-        <div>
+        <div className="form-head-title">
           <div className="crumb">Сделки / Лот #{deal.lotId.slice(0, 6)}</div>
           <h1 style={{ font: '800 22px/1 var(--ui)', margin: 0, letterSpacing: '-0.02em' }}>{deal.lotTitle}</h1>
         </div>
