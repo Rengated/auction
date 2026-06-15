@@ -208,6 +208,9 @@ table.tb .empty{padding:40px 20px;text-align:center;color:var(--faint);}
   /* компактнее табы/кнопки, чтобы помещалось больше на узком экране */
   .pcard .ph .btn.sm{padding:7px 11px;font-size:12px;}
 
+  /* iOS зумит страницу при фокусе на поле со шрифтом <16px — ставим 16px на мобиле */
+  .in,.stepper .val,select.in{font-size:16px;}
+
   /* воронка статусов сделки: 5 кнопок не влезают в ряд — раскладываем сеткой 2 кол. */
   .deal-status-steps{display:grid !important;grid-template-columns:1fr 1fr;gap:8px;}
   .deal-status-steps .btn{flex:none !important;}
