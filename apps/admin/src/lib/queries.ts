@@ -22,6 +22,8 @@ export type AdminLot = LotDto & {
   lotFeeRate: number | null;
   /** Выбранный адрес (точка осмотра/выдачи), null → без адреса */
   addressId: string | null;
+  /** Лот в архиве (скрыт из каталога и основных вкладок). */
+  archived: boolean;
 };
 
 /** Адрес из справочника (точка осмотра/выдачи). */
@@ -171,7 +173,7 @@ export const useDashboard = (from?: string, to?: string) =>
     refetchInterval: 30_000,
   });
 
-export type AdminLotsFilter = 'all' | 'live' | 'soon' | 'done' | 'draft';
+export type AdminLotsFilter = 'all' | 'live' | 'soon' | 'done' | 'draft' | 'archived';
 
 export const useAdminLots = (filter: AdminLotsFilter = 'all', page = 1) =>
   useQuery<Page<AdminLot>>({
@@ -283,6 +285,24 @@ export function useRelistLot(srcId: string) {
   const qc = useQueryClient();
   return useMutation<{ id: string }, ApiError, LotFormPayload>({
     mutationFn: (data) => post(`/admin/lots/${srcId}/relist`, data),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+/** Архивировать / разархивировать лот (мягкое скрытие из каталога). */
+export function useArchiveLot() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: true }, ApiError, { id: string; archived: boolean }>({
+    mutationFn: ({ id, archived }) => post(`/admin/lots/${id}/${archived ? 'archive' : 'unarchive'}`),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+/** Удаление лота (только admin, только без ставок/сделки). */
+export function useDeleteLot() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: true }, ApiError, string>({
+    mutationFn: (id) => del(`/admin/lots/${id}`),
     onSuccess: () => invalidateLots(qc),
   });
 }

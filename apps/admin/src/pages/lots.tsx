@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { fmt, PAGE_LIMITS } from '@hermes/shared';
 import {
   useAdminLots,
+  useArchiveLot,
+  useDeleteLot,
+  useMe,
   usePublishLot,
   useUnpublishLot,
   type AdminLot,
@@ -19,6 +22,7 @@ const TABS: Array<[AdminLotsFilter, string]> = [
   ['soon', 'Ожидают'],
   ['done', 'Завершены'],
   ['draft', 'Черновики'],
+  ['archived', 'Архив'],
 ];
 
 /** Полный LotFormPayload из строки таблицы — для PATCH со снятием публикации. */
@@ -58,8 +62,22 @@ export function LotsPage() {
   const { data: drafts } = useAdminLots('draft');
   const publish = usePublishLot();
   const unpublish = useUnpublishLot();
+  const archive = useArchiveLot();
+  const delLot = useDeleteLot();
+  const { data: me } = useMe();
+  const isAdmin = me?.role === 'admin';
   const toast = useToast();
   const draftCount = drafts?.total ?? 0;
+
+  const onArchive = (l: AdminLot) =>
+    archive.mutate(
+      { id: l.id, archived: !l.archived },
+      { onSuccess: () => toast.ok(l.archived ? 'Лот возвращён' : 'Лот в архиве'), onError: (e) => toast.error(e.message) },
+    );
+  const onDelete = (l: AdminLot) => {
+    if (!window.confirm(`Удалить лот «${l.make} ${l.model}» безвозвратно?`)) return;
+    delLot.mutate(l.id, { onSuccess: () => toast.ok('Лот удалён'), onError: (e) => toast.error(e.message) });
+  };
   const setFilter = (nf: AdminLotsFilter) => {
     setF(nf);
     setPage(1);
@@ -119,26 +137,44 @@ export function LotsPage() {
                 <td data-label="Резерв" className="num">{fmt(l.reservePrice)} ₽</td>
                 <td>
                   <div className="row-actions">
-                    {!l.published && (
-                      <button className="btn sm" disabled={publish.isPending} onClick={() => publish.mutate(l.id, { onSuccess: () => toast.ok('Лот опубликован'), onError: (e) => toast.error(`Не удалось опубликовать: ${e.message}`) })}>Опубликовать</button>
+                    {l.archived ? (
+                      <>
+                        <button className="btn sm" disabled={archive.isPending} onClick={() => onArchive(l)}>Вернуть</button>
+                        {isAdmin && l.bidCount === 0 && (
+                          <button className="iconbtn2" title="Удалить безвозвратно" disabled={delLot.isPending} onClick={() => onDelete(l)} style={{ color: 'var(--live)', borderColor: 'color-mix(in srgb, var(--live) 40%, var(--line2))' }}>
+                            <Ic d={AI.trash} s={14} />
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {!l.published && (
+                          <button className="btn sm" disabled={publish.isPending} onClick={() => publish.mutate(l.id, { onSuccess: () => toast.ok('Лот опубликован'), onError: (e) => toast.error(`Не удалось опубликовать: ${e.message}`) })}>Опубликовать</button>
+                        )}
+                        {l.published && (l.status === 'upcoming' || l.status === 'draft') && l.bidCount === 0 && (
+                          <button className="btn sm" disabled={unpublish.isPending} onClick={() => onUnpublish(l)}>Снять с публикации</button>
+                        )}
+                        {l.status === 'live' && (
+                          <button className="iconbtn2" title="Контроль торга" onClick={() => navigate(`/auctions/${l.id}`)}>{AI.gavel}</button>
+                        )}
+                        {(l.status === 'finished' || l.status === 'withdrawn') && (
+                          <button
+                            className="iconbtn2"
+                            title="Перевыставить лот"
+                            onClick={() => navigate(`/lots/${l.id}/relist`)}
+                            style={{ color: 'var(--accent)', borderColor: 'color-mix(in srgb, var(--accent) 40%, var(--line2))' }}
+                          >
+                            {AI.relist}
+                          </button>
+                        )}
+                        <button className="iconbtn2" title="Редактировать" onClick={() => navigate(`/lots/${l.id}/edit`)}>{AI.edit}</button>
+                        {l.status !== 'live' && (
+                          <button className="iconbtn2" title="В архив (скрыть)" disabled={archive.isPending} onClick={() => onArchive(l)}>
+                            {AI.ban}
+                          </button>
+                        )}
+                      </>
                     )}
-                    {l.published && (l.status === 'upcoming' || l.status === 'draft') && l.bidCount === 0 && (
-                      <button className="btn sm" disabled={unpublish.isPending} onClick={() => onUnpublish(l)}>Снять с публикации</button>
-                    )}
-                    {l.status === 'live' && (
-                      <button className="iconbtn2" title="Контроль торга" onClick={() => navigate(`/auctions/${l.id}`)}>{AI.gavel}</button>
-                    )}
-                    {(l.status === 'finished' || l.status === 'withdrawn') && (
-                      <button
-                        className="iconbtn2"
-                        title="Перевыставить лот"
-                        onClick={() => navigate(`/lots/${l.id}/relist`)}
-                        style={{ color: 'var(--accent)', borderColor: 'color-mix(in srgb, var(--accent) 40%, var(--line2))' }}
-                      >
-                        {AI.relist}
-                      </button>
-                    )}
-                    <button className="iconbtn2" title="Редактировать" onClick={() => navigate(`/lots/${l.id}/edit`)}>{AI.edit}</button>
                   </div>
                 </td>
               </tr>
