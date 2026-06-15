@@ -8,10 +8,10 @@ import { LotCardBody } from '../components/lot-card';
 export function LivePage() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { data: lots = [] } = useCatalog('live', '');
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCatalog('live', '');
   const toggleFav = useToggleFavorite();
-  // Самые «горящие» лоты сверху
-  const live = [...lots].sort((a, b) => new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime());
+  // Сервер уже сортирует по endsAt (самые «горящие» сверху)
+  const live = data?.items ?? [];
 
   const open = (lot: LotDto) => navigate(`/lots/${lot.id}`);
   const fav = (lot: LotDto) => (on: boolean) => toggleFav.mutate({ lotId: lot.id, on });
@@ -36,6 +36,12 @@ export function LivePage() {
                   <LotCardBody lot={lot} onToggleFav={fav(lot)} />
                 </button>
               ))}
+            {hasNextPage && (
+              <button className="btn" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}
+                style={{ marginTop: 16, alignSelf: 'center', background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>
+                {isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -55,13 +61,22 @@ export function LivePage() {
       {live.length === 0
         ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '80px 0' }}>Нет лотов в этой категории</div>
         : (
-          <div className="grid">
-            {live.map((lot) => (
-              <button key={lot.id} className="wcard" onClick={() => open(lot)}>
-                <LotCardBody lot={lot} onToggleFav={fav(lot)} />
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="grid">
+              {live.map((lot) => (
+                <button key={lot.id} className="wcard" onClick={() => open(lot)}>
+                  <LotCardBody lot={lot} onToggleFav={fav(lot)} />
+                </button>
+              ))}
+            </div>
+            {hasNextPage && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                <button className="wbtn ghost" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
+                  {isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+                </button>
+              </div>
+            )}
+          </>
         )}
     </div>
   );

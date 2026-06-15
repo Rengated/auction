@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { maskBidder, type BidRowDto, type LotDto } from '@hermes/shared';
+import { maskBidder, PAGE_LIMITS, type BidRowDto, type LotDto, type Page } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { lotToDto } from './lot.mapper';
@@ -14,36 +14,62 @@ export class LotsService {
     private readonly settings: SettingsService,
   ) {}
 
-  async catalog(filter: CatalogFilter, q: string | undefined, userId: string | null): Promise<LotDto[]> {
-    const where: Prisma.LotWhereInput = { published: true, status: { not: 'draft' } };
-    if (filter === 'live') where.status = 'live';
-    if (filter === 'soon') where.status = 'upcoming';
-    if (filter === 'done') where.status = { in: ['sold', 'finished', 'withdrawn'] };
+  async catalog(
+    filter: CatalogFilter,
+    q: string | undefined,
+    userId: string | null,
+    limit: number = PAGE_LIMITS.catalog,
+    offset = 0,
+  ): Promise<Page<LotDto>> {
+    if (filter === 'fav' && !userId) return { items: [], total: 0, limit, offset };
+
+    const conds: Prisma.Sql[] = [Prisma.sql`l.published = true`, Prisma.sql`l.status <> 'draft'`];
+    if (filter === 'live') conds.push(Prisma.sql`l.status = 'live'`);
+    if (filter === 'soon') conds.push(Prisma.sql`l.status = 'upcoming'`);
+    if (filter === 'done') conds.push(Prisma.sql`l.status IN ('sold', 'finished', 'withdrawn')`);
     if (filter === 'fav') {
-      if (!userId) return [];
-      where.favorites = { some: { userId } };
+      conds.push(
+        Prisma.sql`EXISTS (SELECT 1 FROM favorites f WHERE f.lot_id = l.id AND f.user_id = ${userId}::uuid)`,
+      );
     }
     if (q) {
-      where.OR = ['make', 'family', 'model'].map((f) => ({
-        [f]: { contains: q, mode: 'insensitive' as const },
-      }));
+      const like = `%${q}%`;
+      conds.push(
+        Prisma.sql`(l.make ILIKE ${like} OR l.family ILIKE ${like} OR l.model ILIKE ${like})`,
+      );
     }
-    const lots = await this.prisma.lot.findMany({
-      where,
-      include: { photos: true },
-      orderBy: [{ status: 'asc' }, { endsAt: 'asc' }],
-    });
-    // Порядок групп: live → upcoming → завершённые (как в дизайне)
-    const rank = { live: 0, upcoming: 1, sold: 2, finished: 2, withdrawn: 2, draft: 3 } as const;
-    lots.sort((a, b) => rank[a.status] - rank[b.status] || a.endsAt.getTime() - b.endsAt.getTime());
+    const whereSql = Prisma.join(conds, ' AND ');
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; total: bigint }>>(Prisma.sql`
+      SELECT l.id, COUNT(*) OVER() AS total
+      FROM lots l
+      WHERE ${whereSql}
+      ORDER BY CASE l.status WHEN 'live' THEN 0 WHEN 'upcoming' THEN 1 ELSE 2 END, l.ends_at ASC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+
+    const total = rows.length ? Number(rows[0].total) : 0;
+    const ids = rows.map((r) => r.id);
+    if (ids.length === 0) return { items: [], total, limit, offset };
+
+    const lots = await this.prisma.lot.findMany({ where: { id: { in: ids } }, include: { photos: true } });
+    const byId = new Map(lots.map((l) => [l.id, l]));
+    const ordered = ids.map((id) => byId.get(id)!);
 
     const favs = userId
       ? new Set(
-          (await this.prisma.favorite.findMany({ where: { userId }, select: { lotId: true } })).map((f) => f.lotId),
+          (
+            await this.prisma.favorite.findMany({ where: { userId, lotId: { in: ids } }, select: { lotId: true } })
+          ).map((f) => f.lotId),
         )
       : new Set<string>();
     const defaults = await this.settings.lotDefaults();
-    return lots.map((l) => lotToDto(l, defaults, { isFavorite: favs.has(l.id) }));
+    return {
+      items: ordered.map((l) => lotToDto(l, defaults, { isFavorite: favs.has(l.id) })),
+      total,
+      limit,
+      offset,
+    };
   }
 
   async byId(id: string, userId: string | null): Promise<LotDto> {

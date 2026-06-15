@@ -139,7 +139,11 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
             <span style={{ color: 'var(--text-dim)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               <HermesH size={22} color="#9aa2ac" /> Hermes Trade
             </span>
-            <span>© 2026 · все права защищены</span>
+            <span style={{ display: 'inline-flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Link to="/legal/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Политика конфиденциальности</Link>
+              <Link to="/legal/terms" style={{ color: 'inherit', textDecoration: 'none' }}>Правила сервиса</Link>
+              <span>© 2026</span>
+            </span>
           </div>
         </div>
       </div>

@@ -1,5 +1,7 @@
 import { Controller, Delete, Get, Param, ParseUUIDPipe, Put, Query, UseGuards } from '@nestjs/common';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { CurrentUser, Public, type AuthUser } from '../../common/decorators';
+import { PageQueryDto } from '../../common/pagination.dto';
 import { NotBlockedGuard } from '../auth/not-blocked.guard';
 import { LotsService, type CatalogFilter } from './lots.service';
 
@@ -13,8 +15,9 @@ export class LotsController {
     @Query('filter') filter: CatalogFilter = 'all',
     @Query('q') q: string | undefined,
     @CurrentUser() user: AuthUser | null,
+    @Query() page: PageQueryDto,
   ) {
-    return this.lots.catalog(filter, q, user?.id ?? null);
+    return this.lots.catalog(filter, q, user?.id ?? null, page.limit ?? PAGE_LIMITS.catalog, page.offset ?? 0);
   }
 
   @Public()

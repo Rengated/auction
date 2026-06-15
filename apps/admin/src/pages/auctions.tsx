@@ -88,8 +88,10 @@ function UpcomingRow({ lot }: { lot: AdminLot }) {
 
 export function AuctionsPage() {
   const navigate = useNavigate();
-  const { data: live = [] } = useAdminLots('live');
-  const { data: upcoming = [] } = useAdminLots('soon');
+  const { data: livePage } = useAdminLots('live');
+  const { data: soonPage } = useAdminLots('soon');
+  const live = livePage?.items ?? [];
+  const upcoming = soonPage?.items ?? [];
   return (
     <div className="content fade">
       {/* live auctions as control cards */}

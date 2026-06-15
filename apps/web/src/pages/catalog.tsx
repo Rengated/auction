@@ -32,9 +32,11 @@ export function CatalogPage() {
   const navigate = useNavigate();
   const now = useNow();
   const { filter, q, setFilter, setQ } = useUiStore();
-  const { data: lots = [] } = useCatalog(filter, q);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCatalog(filter, q);
+  const lots = data?.items ?? [];
   // Отдельный запрос «всё» — для тикера ставок и счётчика «в эфире»
-  const { data: allLots = [] } = useCatalog('all', '');
+  const { data: allData } = useCatalog('all', '');
+  const allLots = allData?.items ?? [];
   const toggleFav = useToggleFavorite();
   const liveCount = allLots.filter((l) => STATUS_META[displayStatus(l.status, l.endsAt, now)].group === 'live').length;
 
@@ -77,6 +79,12 @@ export function CatalogPage() {
             {lots.length === 0
               ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '54px 0', fontSize: 14 }}>Нет лотов в этой категории</div>
               : lots.map((lot) => <LotCard key={lot.id} lot={lot} onOpen={() => open(lot)} onToggleFav={fav(lot)} />)}
+            {hasNextPage && (
+              <button className="btn" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}
+                style={{ marginTop: 16, alignSelf: 'center', background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>
+                {isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -109,13 +117,22 @@ export function CatalogPage() {
       {lots.length === 0
         ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '80px 0' }}>Нет лотов в этой категории</div>
         : (
-          <div className="grid">
-            {lots.map((lot) => (
-              <button key={lot.id} className="wcard" onClick={() => open(lot)}>
-                <LotCardBody lot={lot} onToggleFav={fav(lot)} />
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="grid">
+              {lots.map((lot) => (
+                <button key={lot.id} className="wcard" onClick={() => open(lot)}>
+                  <LotCardBody lot={lot} onToggleFav={fav(lot)} />
+                </button>
+              ))}
+            </div>
+            {hasNextPage && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                <button className="wbtn ghost" disabled={isFetchingNextPage} onClick={() => fetchNextPage()}>
+                  {isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+                </button>
+              </div>
+            )}
+          </>
         )}
     </div>
   );

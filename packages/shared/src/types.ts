@@ -237,3 +237,21 @@ export interface AddressDto {
   city: string | null;
   sortOrder: number;
 }
+
+/** Универсальная страница списка (offset-based). */
+export interface Page<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** Дефолтные лимиты страниц по типу списка. */
+export const PAGE_LIMITS = {
+  catalog: 24,
+  myBids: 20,
+  admin: 30,
+} as const;
+
+/** Жёсткий потолок размера страницы (чтобы клиент не запросил гигантскую). */
+export const MAX_PAGE_LIMIT = 100;

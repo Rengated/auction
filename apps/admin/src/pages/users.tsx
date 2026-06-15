@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { AI, Ic } from '../components/icons';
+import { Pagination } from '../components/pagination';
 import {
   useCreateStaff,
   useDeleteUser,
@@ -280,8 +282,9 @@ function StaffPasswordForm({ user, onDone }: { user: AdminUser; onDone: () => vo
 }
 
 function StaffPanel() {
-  const { data: allUsers = [] } = useUsers('all');
-  const staff = allUsers.filter((u) => u.isStaff);
+  // Фильтр 'manager' на бэке = role in (manager, admin) = ровно штат
+  const { data } = useUsers('manager');
+  const staff = data?.items ?? [];
   const [creating, setCreating] = useState(false);
   const [pwFor, setPwFor] = useState<string | null>(null);
 
@@ -340,10 +343,15 @@ export function UsersPage() {
     delUser.mutate(u.id, { onError: (e) => window.alert(e.message) });
   };
   const [f, setF] = useState<UsersFilter>('all');
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<AdminUser | null>(null);
-  const { data: users = [] } = useUsers(f);
-  const { data: allUsers = [] } = useUsers('all');
-  const blockedN = allUsers.filter(isBlocked).length;
+  const { data } = useUsers(f, page);
+  const users = data?.items ?? [];
+  const blockedN = useUsers('blocked').data?.total ?? 0;
+  const setFilter = (nf: UsersFilter) => {
+    setF(nf);
+    setPage(1);
+  };
   const tabs: Array<[UsersFilter, string]> = [['all', 'Все'], ['buyer', 'Покупатели'], ['manager', 'Команда'], ['blocked', 'Заблокированные']];
 
   if (selected) {
@@ -364,7 +372,7 @@ export function UsersPage() {
               <button
                 key={k}
                 className="btn sm"
-                onClick={() => setF(k)}
+                onClick={() => setFilter(k)}
                 style={f === k ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : { background: 'transparent', border: '1px solid var(--line2)' }}
               >
                 {l}{k === 'blocked' && blockedN ? ` · ${blockedN}` : ''}
@@ -441,6 +449,7 @@ export function UsersPage() {
             )}
           </tbody>
         </table>
+        <Pagination total={data?.total ?? 0} limit={PAGE_LIMITS.admin} page={page} onPage={setPage} />
       </div>
     </div>
   );

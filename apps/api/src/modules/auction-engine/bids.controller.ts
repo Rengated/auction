@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { IsInt, IsPositive, IsUUID } from 'class-validator';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { CurrentUser, type AuthUser } from '../../common/decorators';
+import { PageQueryDto } from '../../common/pagination.dto';
 import { ContactsFilledGuard } from '../auth/contacts.guard';
 import { BidService } from './bid.service';
 import { MyBidsService } from './my-bids.service';
@@ -32,7 +34,11 @@ export class BidsController {
   }
 
   @Get('me/bids')
-  my(@CurrentUser() user: AuthUser, @Query('tab') tab: 'active' | 'won' = 'active') {
-    return this.myBids.list(user!.id, tab);
+  my(
+    @CurrentUser() user: AuthUser,
+    @Query('tab') tab: 'active' | 'won' = 'active',
+    @Query() page: PageQueryDto,
+  ) {
+    return this.myBids.list(user!.id, tab, page.limit ?? PAGE_LIMITS.myBids, page.offset ?? 0);
   }
 }

@@ -1,5 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import { useEffect } from 'react';
+import type { InfiniteData } from '@tanstack/react-query';
 import {
   WS_EVENTS,
   type BidPlacedEvent,
@@ -10,10 +11,21 @@ import {
   type LotStatusEvent,
   type LotTickDto,
   type NotificationDto,
+  type Page,
   type UnreadCountDto,
 } from '@hermes/shared';
 import { queryClient } from './queries';
 import { useTimeStore } from './time';
+
+/** Патч одного лота во всех страницах infinite-кэша каталога. */
+type LotsCache = InfiniteData<Page<LotDto>>;
+function patchLotsPages(id: string, fn: (l: LotDto) => LotDto): void {
+  queryClient.setQueriesData<LotsCache>({ queryKey: ['lots'] }, (data) =>
+    data
+      ? { ...data, pages: data.pages.map((p) => ({ ...p, items: p.items.map((l) => (l.id === id ? fn(l) : l)) })) }
+      : data,
+  );
+}
 
 let socket: Socket | null = null;
 
@@ -28,9 +40,7 @@ function patchLotCaches(tick: LotTickDto): void {
     endsAt: tick.endsAt,
   });
   queryClient.setQueryData<LotDto>(['lot', tick.id], (old) => (old ? apply(old) : old));
-  queryClient.setQueriesData<LotDto[]>({ queryKey: ['lots'] }, (old) =>
-    old?.map((l) => (l.id === tick.id ? apply(l) : l)),
-  );
+  patchLotsPages(tick.id, apply);
 }
 
 export function getSocket(): Socket {
@@ -61,9 +71,7 @@ export function getSocket(): Socket {
   socket.on(WS_EVENTS.LOT_EXTENDED, (e: LotExtendedEvent) => {
     useTimeStore.getState().syncServerNow(e.serverNow);
     queryClient.setQueryData<LotDto>(['lot', e.lotId], (old) => (old ? { ...old, endsAt: e.endsAt } : old));
-    queryClient.setQueriesData<LotDto[]>({ queryKey: ['lots'] }, (old) =>
-      old?.map((l) => (l.id === e.lotId ? { ...l, endsAt: e.endsAt } : l)),
-    );
+    patchLotsPages(e.lotId, (l) => ({ ...l, endsAt: e.endsAt }));
   });
 
   socket.on(WS_EVENTS.LOT_STATUS, (e: LotStatusEvent) => {

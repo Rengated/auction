@@ -29,8 +29,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { WS_EVENTS } from '@hermes/shared';
+import { PAGE_LIMITS, WS_EVENTS } from '@hermes/shared';
 import { Roles } from '../../common/decorators';
+import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LifecycleService } from '../auction-engine/lifecycle.service';
 import { autotekaPdfUrl, lotToDto, lotToTick, photoToDto } from '../lots/lot.mapper';
@@ -86,7 +87,9 @@ export class AdminLotsController {
   ) {}
 
   @Get()
-  async list(@Query('filter') filter = 'all') {
+  async list(@Query('filter') filter = 'all', @Query() page: PageQueryDto) {
+    const limit = page.limit ?? PAGE_LIMITS.admin;
+    const offset = page.offset ?? 0;
     const where: Prisma.LotWhereInput =
       filter === 'draft'
         ? { published: false }
@@ -97,13 +100,18 @@ export class AdminLotsController {
             : filter === 'done'
               ? { status: { in: ['sold', 'finished', 'withdrawn'] } }
               : {};
-    const lots = await this.prisma.lot.findMany({
-      where,
-      include: { photos: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [lots, total] = await this.prisma.$transaction([
+      this.prisma.lot.findMany({
+        where,
+        include: { photos: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.lot.count({ where }),
+    ]);
     const defaults = await this.settings.lotDefaults();
-    return lots.map((l) => this.toAdminDto(l, defaults));
+    return { items: lots.map((l) => this.toAdminDto(l, defaults)), total, limit, offset };
   }
 
   @Get(':id')

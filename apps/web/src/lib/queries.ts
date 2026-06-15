@@ -1,4 +1,4 @@
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BidRowDto,
   LotDto,
@@ -6,10 +6,12 @@ import type {
   MyBidRow,
   NotificationDto,
   NotificationEvent,
+  Page,
   PlaceBidResponse,
   PublicConfigDto,
   UnreadCountDto,
 } from '@hermes/shared';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { get, patch, post, put, del, ApiError } from './api';
 import { useTimeStore } from './time';
 import { useUiStore } from './ui-store';
@@ -42,10 +44,20 @@ export const useConfig = () =>
     staleTime: 5 * 60_000,
   });
 
+/** Каталог: infinite-пагинация. select → плоский { items, total }. */
 export const useCatalog = (filter: CatalogFilter, q: string) =>
-  useQuery<LotDto[]>({
+  useInfiniteQuery({
     queryKey: ['lots', filter, q],
-    queryFn: () => get(`/lots?filter=${filter}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+    queryFn: ({ pageParam }) =>
+      get<Page<LotDto>>(
+        `/lots?filter=${filter}&limit=${PAGE_LIMITS.catalog}&offset=${pageParam}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
+    select: (d) => ({ items: d.pages.flatMap((p) => p.items), total: d.pages[0]?.total ?? 0 }),
   });
 
 export const useLot = (id: string | undefined) =>
@@ -62,10 +74,18 @@ export const useBidsFeed = (lotId: string | undefined) =>
     enabled: Boolean(lotId),
   });
 
+/** Мои ставки: infinite-пагинация. select → плоский { items, total }. */
 export const useMyBids = (tab: 'active' | 'won') =>
-  useQuery<MyBidRow[]>({
+  useInfiniteQuery({
     queryKey: ['my-bids', tab],
-    queryFn: () => get(`/me/bids?tab=${tab}`),
+    queryFn: ({ pageParam }) =>
+      get<Page<MyBidRow>>(`/me/bids?tab=${tab}&limit=${PAGE_LIMITS.myBids}&offset=${pageParam}`),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
+    select: (d) => ({ items: d.pages.flatMap((p) => p.items), total: d.pages[0]?.total ?? 0 }),
   });
 
 export const useNotifications = (enabled: boolean) =>
@@ -207,6 +227,14 @@ export function useSaveNotificationPrefs() {
 
 export async function logout(): Promise<void> {
   await post('/auth/logout');
+  // me → стабильно null (не clear(), иначе ломается состояние и приватные роуты
+  // проваливаются на /auth вместо гостевого режима с модалкой)
   queryClient.setQueryData(['me'], null);
-  queryClient.clear();
+  // Точечно убрать приватные пользовательские кэши
+  queryClient.removeQueries({ queryKey: ['my-bids'] });
+  queryClient.removeQueries({ queryKey: ['notifications'] });
+  queryClient.removeQueries({ queryKey: ['notifications-unread'] });
+  // Сбросить isFavorite/my у публичных лотов (гость их не имеет)
+  queryClient.invalidateQueries({ queryKey: ['lots'] });
+  queryClient.invalidateQueries({ queryKey: ['lot'] });
 }

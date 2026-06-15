@@ -16,7 +16,9 @@ import {
 } from '@nestjs/common';
 import { Prisma, type DealStatus, type Role } from '@prisma/client';
 import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsInt, Min, MinLength } from 'class-validator';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
+import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { photoToDto } from '../lots/lot.mapper';
@@ -75,9 +77,19 @@ export class AdminDealsController {
   ) {}
 
   @Get()
-  async list() {
-    const deals = await this.prisma.deal.findMany({ include: DEAL_INCLUDE, orderBy: { createdAt: 'desc' } });
-    return deals.map(dealToDto);
+  async list(@Query() page: PageQueryDto) {
+    const limit = page.limit ?? PAGE_LIMITS.admin;
+    const offset = page.offset ?? 0;
+    const [deals, total] = await this.prisma.$transaction([
+      this.prisma.deal.findMany({
+        include: DEAL_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.deal.count(),
+    ]);
+    return { items: deals.map(dealToDto), total, limit, offset };
   }
 
   @Get(':id')
@@ -130,7 +142,9 @@ export class AdminUsersController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
-  async list(@Query('filter') filter = 'all') {
+  async list(@Query('filter') filter = 'all', @Query() page: PageQueryDto) {
+    const limit = page.limit ?? PAGE_LIMITS.admin;
+    const offset = page.offset ?? 0;
     const now = new Date();
     const where: Prisma.UserWhereInput =
       filter === 'blocked'
@@ -140,12 +154,17 @@ export class AdminUsersController {
           : filter === 'buyer'
             ? { role: 'buyer' }
             : {};
-    const users = await this.prisma.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { bids: true, wonDeals: true } } },
-    });
-    return users.map((u) => ({
+    const [users, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { bids: true, wonDeals: true } } },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    const items = users.map((u) => ({
       id: u.id,
       name: u.fullName || u.displayName,
       username: u.username,
@@ -161,6 +180,7 @@ export class AdminUsersController {
       wins: u._count.wonDeals,
       joined: u.createdAt.toISOString(),
     }));
+    return { items, total, limit, offset };
   }
 
   @Patch(':id')

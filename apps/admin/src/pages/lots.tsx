@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fmt } from '@hermes/shared';
+import { fmt, PAGE_LIMITS } from '@hermes/shared';
 import {
   useAdminLots,
   usePublishLot,
@@ -10,6 +10,7 @@ import {
   type LotFormPayload,
 } from '../lib/queries';
 import { AI, Ic, Sb } from '../components/icons';
+import { Pagination } from '../components/pagination';
 
 const TABS: Array<[AdminLotsFilter, string]> = [
   ['all', 'Все'],
@@ -50,11 +51,17 @@ function rowToPayload(l: AdminLot, published: boolean): LotFormPayload {
 export function LotsPage() {
   const navigate = useNavigate();
   const [f, setF] = useState<AdminLotsFilter>('all');
-  const { data: lots = [] } = useAdminLots(f);
+  const [page, setPage] = useState(1);
+  const { data } = useAdminLots(f, page);
+  const lots = data?.items ?? [];
   const { data: drafts } = useAdminLots('draft');
   const publish = usePublishLot();
   const unpublish = useUnpublishLot();
-  const draftCount = drafts?.length ?? 0;
+  const draftCount = drafts?.total ?? 0;
+  const setFilter = (nf: AdminLotsFilter) => {
+    setF(nf);
+    setPage(1);
+  };
 
   const onUnpublish = (l: AdminLot) => {
     if (!window.confirm('Снять лот с публикации? Он вернётся в черновики.')) return;
@@ -70,7 +77,7 @@ export function LotsPage() {
               <button
                 key={k}
                 className="btn sm"
-                onClick={() => setF(k)}
+                onClick={() => setFilter(k)}
                 style={f === k ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : { background: 'transparent', border: '1px solid var(--line2)' }}
               >
                 {l}{k === 'draft' && draftCount ? ` · ${draftCount}` : ''}
@@ -133,6 +140,7 @@ export function LotsPage() {
             )}
           </tbody>
         </table>
+        <Pagination total={data?.total ?? 0} limit={PAGE_LIMITS.admin} page={page} onPage={setPage} />
       </div>
     </div>
   );

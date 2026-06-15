@@ -1,5 +1,6 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddressDto, DealStatus, LotDto, MeDto } from '@hermes/shared';
+import type { AddressDto, DealStatus, LotDto, MeDto, Page } from '@hermes/shared';
+import { PAGE_LIMITS } from '@hermes/shared';
 import { ApiError, del, get, patch, post, postForm, putJson } from './api';
 
 export const queryClient = new QueryClient({
@@ -159,8 +160,12 @@ export const useDashboard = () =>
 
 export type AdminLotsFilter = 'all' | 'live' | 'soon' | 'done' | 'draft';
 
-export const useAdminLots = (filter: AdminLotsFilter = 'all') =>
-  useQuery<AdminLot[]>({ queryKey: ['admin-lots', filter], queryFn: () => get(`/admin/lots?filter=${filter}`) });
+export const useAdminLots = (filter: AdminLotsFilter = 'all', page = 1) =>
+  useQuery<Page<AdminLot>>({
+    queryKey: ['admin-lots', filter, page],
+    queryFn: () => get(`/admin/lots?filter=${filter}&limit=${PAGE_LIMITS.admin}&offset=${(page - 1) * PAGE_LIMITS.admin}`),
+    placeholderData: (prev) => prev,
+  });
 
 export const useAdminLot = (id: string | undefined) =>
   useQuery<AdminLot>({ queryKey: ['admin-lot', id], queryFn: () => get(`/admin/lots/${id}`), enabled: Boolean(id) });
@@ -179,15 +184,24 @@ export const useAdminFeed = (lotId: string | undefined) =>
     enabled: Boolean(lotId),
   });
 
-export const useDeals = () => useQuery<AdminDeal[]>({ queryKey: ['deals'], queryFn: () => get('/admin/deals') });
+export const useDeals = (page = 1) =>
+  useQuery<Page<AdminDeal>>({
+    queryKey: ['deals', page],
+    queryFn: () => get(`/admin/deals?limit=${PAGE_LIMITS.admin}&offset=${(page - 1) * PAGE_LIMITS.admin}`),
+    placeholderData: (prev) => prev,
+  });
 
 export const useDeal = (id: string | undefined) =>
   useQuery<AdminDeal>({ queryKey: ['deal', id], queryFn: () => get(`/admin/deals/${id}`), enabled: Boolean(id) });
 
 export type UsersFilter = 'all' | 'buyer' | 'manager' | 'blocked';
 
-export const useUsers = (filter: UsersFilter = 'all') =>
-  useQuery<AdminUser[]>({ queryKey: ['users', filter], queryFn: () => get(`/admin/users?filter=${filter}`) });
+export const useUsers = (filter: UsersFilter = 'all', page = 1) =>
+  useQuery<Page<AdminUser>>({
+    queryKey: ['users', filter, page],
+    queryFn: () => get(`/admin/users?filter=${filter}&limit=${PAGE_LIMITS.admin}&offset=${(page - 1) * PAGE_LIMITS.admin}`),
+    placeholderData: (prev) => prev,
+  });
 
 export const useSettings = () =>
   useQuery<AdminSettings>({ queryKey: ['settings'], queryFn: () => get('/admin/settings') });

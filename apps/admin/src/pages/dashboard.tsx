@@ -25,10 +25,11 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const now = useNow();
   const { data } = useDashboard();
-  const { data: lots = [] } = useAdminLots('all');
+  const { data: livePage } = useAdminLots('live');
+  const { data: soonPage } = useAdminLots('soon');
 
-  const live = lots.filter((l) => l.status === 'live' && l.published);
-  const upcoming = lots.filter((l) => l.status === 'upcoming' && l.published);
+  const live = livePage?.items ?? [];
+  const upcoming = soonPage?.items ?? [];
   const schedule = upcoming.concat(live.slice(0, 2));
 
   const week = data?.week ?? [0, 0, 0, 0, 0, 0, 0];

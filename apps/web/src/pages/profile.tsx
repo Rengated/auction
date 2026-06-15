@@ -1,6 +1,6 @@
 /* Профиль: мобильные экраны (ScreenProfile / ScreenProfilePage) и веб (сайдбар + панели) из дизайна. */
 import { useEffect, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { NOTIFICATION_EVENTS, rub, type DealStatus, type MeDto, type NotificationDto, type NotificationEvent } from '@hermes/shared';
 import {
   useConfig,
@@ -335,7 +335,8 @@ const DEAL_STATUS_META: Record<DealStatus, [string, string]> = {
 
 /** Карточки выигранных лотов (общие). */
 function WonList({ mobile }: { mobile: boolean }) {
-  const { data: won = [] } = useMyBids('won');
+  const { data } = useMyBids('won');
+  const won = data?.items ?? [];
   const navigate = useNavigate();
   if (won.length === 0) {
     return <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Пока нет выигранных лотов</div>;
@@ -462,7 +463,7 @@ function ScreenProfile({ me }: { me: MeDto }) {
   ];
   const doLogout = async () => {
     await logout();
-    navigate('/auth');
+    navigate('/');
   };
   return (
     <div className="screen screen-enter">
@@ -493,7 +494,11 @@ function ScreenProfile({ me }: { me: MeDto }) {
             ))}
           </div>
           <div style={{ marginTop: 14 }}><ThemeCard /></div>
-          <button className="btn block" onClick={doLogout} style={{ marginTop: 14, marginBottom: 96, background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>Выйти из аккаунта</button>
+          <button className="btn block" onClick={doLogout} style={{ marginTop: 14, background: 'transparent', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>Выйти из аккаунта</button>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 16, marginBottom: 96, flexWrap: 'wrap' }}>
+            <Link to="/legal/privacy" style={{ color: 'var(--text-faint)', fontSize: 12, textDecoration: 'none' }}>Политика конфиденциальности</Link>
+            <Link to="/legal/terms" style={{ color: 'var(--text-faint)', fontSize: 12, textDecoration: 'none' }}>Правила сервиса</Link>
+          </div>
         </div>
       </div>
     </div>
@@ -586,7 +591,7 @@ function WebProfile({ me, sec }: { me: MeDto; sec: string }) {
   ];
   const doLogout = async () => {
     await logout();
-    navigate('/auth');
+    navigate('/');
   };
   return (
     <div className="wrap viewfade">

@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fmt } from '@hermes/shared';
+import { fmt, PAGE_LIMITS } from '@hermes/shared';
 import { useDeals, type AdminDeal } from '../lib/queries';
+import { Pagination } from '../components/pagination';
 
 export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
   in_progress: ['В работе', 'up'],
@@ -10,7 +12,9 @@ export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
 
 export function DealsPage() {
   const navigate = useNavigate();
-  const { data: deals = [] } = useDeals();
+  const [page, setPage] = useState(1);
+  const { data } = useDeals(page);
+  const deals = data?.items ?? [];
   const feeRate = deals[0]?.feeRate;
   const feeHead = feeRate ? `Комиссия ${(feeRate * 100).toLocaleString('ru-RU')}%` : 'Комиссия';
   return (
@@ -52,6 +56,7 @@ export function DealsPage() {
             )}
           </tbody>
         </table>
+        <Pagination total={data?.total ?? 0} limit={PAGE_LIMITS.admin} page={page} onPage={setPage} />
       </div>
     </div>
   );

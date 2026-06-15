@@ -62,9 +62,13 @@ export function MyBidsPage() {
   const navigate = useNavigate();
   const now = useNow();
   const [tab, setTab] = useState<Tab>('active');
-  const { data: active = [] } = useMyBids('active');
-  const { data: won = [] } = useMyBids('won');
-  const { data: favLots = [] } = useCatalog('fav', '');
+  const activeQ = useMyBids('active');
+  const wonQ = useMyBids('won');
+  const favQ = useCatalog('fav', '');
+
+  const active = activeQ.data?.items ?? [];
+  const won = wonQ.data?.items ?? [];
+  const favLots = favQ.data?.items ?? [];
 
   const rows: Row[] =
     tab === 'active'
@@ -73,9 +77,22 @@ export function MyBidsPage() {
         ? won.map((r) => ({ lot: r.lot, kind: 'win', mine: r.myLastBid }))
         : favLots.map((lot) => ({ lot, kind: 'watch', mine: null }));
 
+  // «Показать ещё» относится к текущей активной вкладке
+  const tabQ = tab === 'active' ? activeQ : tab === 'won' ? wonQ : favQ;
+
   const list = rows.length === 0
     ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '60px 0', fontSize: 14 }}>Здесь пока пусто</div>
-    : rows.map((r) => <BidRow key={r.lot.id} row={r} now={now} onOpen={() => navigate(`/lots/${r.lot.id}`)} />);
+    : (
+      <>
+        {rows.map((r) => <BidRow key={r.lot.id} row={r} now={now} onOpen={() => navigate(`/lots/${r.lot.id}`)} />)}
+        {tabQ.hasNextPage && (
+          <button className="wbtn ghost" disabled={tabQ.isFetchingNextPage} onClick={() => tabQ.fetchNextPage()}
+            style={{ alignSelf: 'center', marginTop: 4, justifyContent: 'center' }}>
+            {tabQ.isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+          </button>
+        )}
+      </>
+    );
 
   if (isMobile) {
     return (

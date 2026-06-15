@@ -107,11 +107,13 @@ function LoginForm() {
 function Sidebar() {
   const location = useLocation();
   const { data: me } = useMe();
-  const { data: lots = [] } = useAdminLots('all');
-  const liveN = lots.filter((l) => l.status === 'live').length;
+  const { data: lotsPage } = useAdminLots('all');
+  const { data: livePage } = useAdminLots('live');
+  const lotsN = lotsPage?.total ?? 0;
+  const liveN = livePage?.total ?? 0;
   const items = [
     ['/', 'Дашборд', AI.dash, null],
-    ['/lots', 'Лоты', AI.lots, lots.length || null],
+    ['/lots', 'Лоты', AI.lots, lotsN || null],
     ['/auctions', 'Торги', AI.gavel, liveN || null],
     ['/deals', 'Сделки', AI.deals, null],
     ['/users', 'Пользователи', AI.users, null],
