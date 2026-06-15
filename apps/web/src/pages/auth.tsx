@@ -1,5 +1,5 @@
 /* Вход через Яндекс ID: мобильный welcome-экран (hifi-auth.jsx) и веб-сплит (hifi-web-auth.jsx). */
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import type { MeDto } from '@hermes/shared';
 import { logout, useMe } from '../lib/queries';
 import { goYandex } from '../lib/auth';
@@ -10,7 +10,6 @@ const HERO_IMG = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w
 
 /* Мобильный welcome-экран: hero-фото с градиентом, статы, кнопка Яндекса внизу. */
 function MobileAuth() {
-  const navigate = useNavigate();
   return (
     <div className="mshell">
       <div className="screen screen-enter">
@@ -38,12 +37,6 @@ function MobileAuth() {
           <button className="btn block" style={{ padding: '15px', background: YA_RED, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }} onClick={goYandex}>
             <YandexGlyph size={20} /> Войти через Яндекс ID
           </button>
-          <button
-            onClick={() => navigate('/')}
-            style={{ width: '100%', marginTop: 10, padding: '12px', background: 'transparent', border: '1px solid var(--line)', borderRadius: 12, color: 'var(--text-dim)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-          >
-            Смотреть каталог без входа
-          </button>
           <div style={{ textAlign: 'center', marginTop: 12, color: 'var(--text-faint)', fontSize: 11.5, lineHeight: 1.45 }}>
             Вход и регистрация через Яндекс ID.<br />Нажимая, вы соглашаетесь с условиями сервиса.
           </div>
@@ -55,7 +48,6 @@ function MobileAuth() {
 
 /* Веб-сплит: слева центрированная форма входа, справа hero с фото и цитатой. */
 function WebAuth() {
-  const navigate = useNavigate();
   return (
     <div className="web-auth-grid viewfade">
       {/* левая колонка: форма */}
@@ -70,12 +62,6 @@ function WebAuth() {
           </p>
           <button className="wbtn" style={{ width: '100%', justifyContent: 'center', padding: '15px', marginTop: 26, background: YA_RED, color: '#fff', fontWeight: 700, fontSize: 15 }} onClick={goYandex}>
             <YandexGlyph size={20} /> Войти через Яндекс ID
-          </button>
-          <button
-            onClick={() => navigate('/')}
-            style={{ width: '100%', marginTop: 12, padding: '13px', background: 'transparent', border: '1px solid var(--line)', borderRadius: 12, color: 'var(--text-dim)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-          >
-            Смотреть каталог без входа
           </button>
           <div style={{ textAlign: 'center', marginTop: 16, color: 'var(--text-faint)', fontSize: 12, lineHeight: 1.5 }}>
             Вход и регистрация через Яндекс ID.<br />Нажимая, вы соглашаетесь с условиями сервиса.

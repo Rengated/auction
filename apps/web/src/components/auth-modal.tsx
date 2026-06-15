@@ -88,12 +88,6 @@ export function AuthPromptModal() {
       >
         <YandexGlyph size={20} /> Войти через Яндекс ID
       </button>
-      <button
-        onClick={close}
-        style={{ width: '100%', marginTop: 10, padding: '11px', background: 'transparent', border: 'none', color: 'var(--text-faint)', fontSize: 13, cursor: 'pointer' }}
-      >
-        Продолжить просмотр
-      </button>
     </div>
   );
 

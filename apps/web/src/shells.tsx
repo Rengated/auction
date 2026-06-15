@@ -9,21 +9,28 @@ import { HermesH, HermesLogo } from './components/brand';
 export function MobileShell({ children, nav = true }: { children: ReactNode; nav?: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { data: me } = useMe();
   const { data: unread } = useUnreadCount();
+  const openAuthPrompt = useUiStore((s) => s.openAuthPrompt);
+  // Приватные табы у гостя → модалка входа с контекстным текстом
   const items = [
-    ['/', 'Лоты', I.catalog],
-    ['/my-bids', 'Ставки', I.bids],
-    ['/profile', 'Профиль', I.user],
+    ['/', 'Лоты', I.catalog, null],
+    ['/my-bids', 'Ставки', I.bids, 'перейти в мои ставки'],
+    ['/profile', 'Профиль', I.user, 'перейти в профиль'],
   ] as const;
   const active = (path: string) =>
     path === '/' ? location.pathname === '/' || location.pathname === '/live' : location.pathname.startsWith(path);
+  const onTab = (path: string, reason: string | null) => {
+    if (reason && !me) openAuthPrompt(reason);
+    else navigate(path);
+  };
   return (
     <div className="mshell">
       {children}
       {nav && (
         <div className="nav">
-          {items.map(([path, label, icon]) => (
-            <button key={path} className={`tab ${active(path) ? 'on' : ''}`} onClick={() => navigate(path)}>
+          {items.map(([path, label, icon, reason]) => (
+            <button key={path} className={`tab ${active(path) ? 'on' : ''}`} onClick={() => onTab(path, reason)}>
               <span className="ic" style={{ position: 'relative' }}>
                 {icon}
                 {path === '/profile' && (unread?.count ?? 0) > 0 && (
@@ -45,12 +52,14 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
   const { data: unread } = useUnreadCount();
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const openAuthPrompt = useUiStore((s) => s.openAuthPrompt);
   const location = useLocation();
   const navigate = useNavigate();
+  // reason ≠ null → приватная ссылка: гость видит модалку входа вместо перехода
   const links = [
-    ['/', 'Каталог'],
-    ['/live', 'Живые торги'],
-    ['/my-bids', 'Мои ставки'],
+    ['/', 'Каталог', null],
+    ['/live', 'Живые торги', null],
+    ['/my-bids', 'Мои ставки', 'перейти в мои ставки'],
   ] as const;
   const iconBtn = {
     width: 38, height: 38, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)',
@@ -66,8 +75,18 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
               <HermesLogo markSize={30} fontSize={16} color="var(--text)" accent="#9aa2ac" />
             </Link>
             <nav className="nav-links">
-              {links.map(([path, label]) => (
-                <Link key={path} to={path} className={location.pathname === path ? 'on' : ''}>
+              {links.map(([path, label, reason]) => (
+                <Link
+                  key={path}
+                  to={path}
+                  className={location.pathname === path ? 'on' : ''}
+                  onClick={(e) => {
+                    if (reason && !me) {
+                      e.preventDefault();
+                      openAuthPrompt(reason);
+                    }
+                  }}
+                >
                   {label}
                 </Link>
               ))}
