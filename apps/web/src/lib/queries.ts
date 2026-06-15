@@ -12,6 +12,7 @@ import type {
 } from '@hermes/shared';
 import { get, patch, post, put, del, ApiError } from './api';
 import { useTimeStore } from './time';
+import { useUiStore } from './ui-store';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -110,7 +111,9 @@ export function usePlaceBid(lotId: string) {
 
 export function useToggleFavorite() {
   const qc = useQueryClient();
-  return useMutation({
+  const { data: me } = useMe();
+  const openAuthPrompt = useUiStore((s) => s.openAuthPrompt);
+  const m = useMutation({
     mutationFn: ({ lotId, on }: { lotId: string; on: boolean }) =>
       on ? put(`/lots/${lotId}/favorite`) : del(`/lots/${lotId}/favorite`),
     onSuccess: (_, { lotId, on }) => {
@@ -118,6 +121,15 @@ export function useToggleFavorite() {
       qc.invalidateQueries({ queryKey: ['lots'] });
     },
   });
+  // Гость → модалка входа вместо 401 (одна точка для каталога/лота/live)
+  const mutate = (vars: { lotId: string; on: boolean }) => {
+    if (!me) {
+      openAuthPrompt('добавлять в избранное');
+      return;
+    }
+    m.mutate(vars);
+  };
+  return { ...m, mutate };
 }
 
 export function useSaveContacts() {

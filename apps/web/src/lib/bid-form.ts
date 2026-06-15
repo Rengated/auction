@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ERROR_CODES, minNextBid, type LotDto } from '@hermes/shared';
 import { ApiError } from './api';
 import { usePlaceBid, useMe } from './queries';
+import { useUiStore } from './ui-store';
 
 /**
  * Общая логика формы ставки для мобильного BidPanel и веб BidBox:
@@ -16,6 +17,7 @@ export function useBidForm(lot: LotDto) {
   const navigate = useNavigate();
   const place = usePlaceBid(lot.id);
   const { data: me } = useMe();
+  const openAuthPrompt = useUiStore((s) => s.openAuthPrompt);
   const prevMin = useRef(minNext);
 
   // Цена выросла (перебили) — подтягиваем значение к новому минимуму
@@ -32,7 +34,7 @@ export function useBidForm(lot: LotDto) {
   const submit = () => {
     setError(null);
     if (!me) {
-      navigate('/auth');
+      openAuthPrompt('делать ставки');
       return;
     }
     if (!contactsFilled) {

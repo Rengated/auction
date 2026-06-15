@@ -13,6 +13,7 @@ export const I = {
   bids: <S><path d="M3 7h13l-1.5 9a2 2 0 0 1-2 1.7H6.5a2 2 0 0 1-2-1.7L3 7Z" /><path d="M16 10h3.5a1.5 1.5 0 0 1 0 3H16" /><path d="M7 7V5.5A2.5 2.5 0 0 1 9.5 3h0A2.5 2.5 0 0 1 12 5.5V7" /></S>,
   user: <S><circle cx="12" cy="8" r="4" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" /></S>,
   back: <S><path d="M15 5 8 12l7 7" /></S>,
+  close: <S><path d="M6 6l12 12M18 6 6 18" /></S>,
   search: <S><circle cx="11" cy="11" r="7" /><path d="m21 21-4-4" /></S>,
   clock: <S><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></S>,
   bookmark: <S><path d="M6 4h12v16l-6-4-6 4V4Z" /></S>,

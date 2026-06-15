@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './styles/tokens.css';
 import { queryClient, useMe } from './lib/queries';
 import { getSocket } from './lib/ws';
+import { takeReturnPath } from './lib/auth';
 import { useIsMobile } from './lib/layout';
 import { useUiStore } from './lib/ui-store';
 import { MobileShell, WebShell } from './shells';
+import { AuthPromptModal } from './components/auth-modal';
 import { AuthPage, BlockedScreen } from './pages/auth';
 import { CatalogPage } from './pages/catalog';
 import { LivePage } from './pages/live';
@@ -60,6 +62,23 @@ const guestPage = (el: React.ReactNode, mobileNav = true) => (
   </GuestGate>
 );
 
+/** После входа возвращает гостя на ту же страницу (Яндекс вернул на корень). */
+function ReturnRedirect() {
+  const { data: me } = useMe();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current || !me || location.pathname !== '/') return;
+    const ret = takeReturnPath();
+    if (ret && ret !== '/') {
+      done.current = true;
+      navigate(ret, { replace: true });
+    }
+  }, [me, location.pathname, navigate]);
+  return null;
+}
+
 function Router() {
   const theme = useUiStore((s) => s.theme);
   useEffect(() => {
@@ -72,6 +91,7 @@ function Router() {
   }, [theme]);
   return (
     <BrowserRouter>
+      <ReturnRedirect />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/" element={guestPage(<CatalogPage />)} />
@@ -82,6 +102,7 @@ function Router() {
         <Route path="/profile/:page" element={page(<ProfilePage />, false)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <AuthPromptModal />
     </BrowserRouter>
   );
 }
