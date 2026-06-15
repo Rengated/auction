@@ -74,7 +74,7 @@ export class AuthController {
     const target = state.endsWith(':admin') ? 'admin' : 'web';
     const profile = await this.yandex.exchangeCode(code);
     const user = await this.auth.upsertFromYandex(profile);
-    await this.auth.issueSession(user, res, req.headers['user-agent']);
+    await this.auth.issueSession(user, res, req.headers['user-agent'], 'buyer');
     return res.redirect(clientOrigin(target));
   }
 
@@ -112,23 +112,26 @@ export class AuthController {
     if (!this.yandex.devFake) throw new BadRequestException('Dev-вход выключен');
     const user = await this.prisma.user.findUnique({ where: { yandexId: as_ } });
     if (!user) throw new UnauthorizedException('Нет такого dev-пользователя');
-    await this.auth.issueSession(user, res, req.headers['user-agent']);
+    await this.auth.issueSession(user, res, req.headers['user-agent'], 'buyer');
     return res.redirect(clientOrigin(target));
   }
 
   @Public()
   @Post('refresh')
   async refresh(@Req() req: Request, @Res() res: Response) {
-    const token = req.cookies?.refresh_token;
+    // Аудитория определяется по тому, какая refresh-кука пришла (staff_* → персонал).
+    const staffToken = req.cookies?.staff_refresh;
+    const token = staffToken ?? req.cookies?.refresh_token;
     if (!token) throw new UnauthorizedException();
-    await this.auth.refreshSession(token, res, req.headers['user-agent']);
+    await this.auth.refreshSession(token, res, req.headers['user-agent'], staffToken ? 'staff' : 'buyer');
     return res.json({ ok: true });
   }
 
   @Public()
   @Post('logout')
   async logout(@Req() req: Request, @Res() res: Response) {
-    await this.auth.logout(req.cookies?.refresh_token, res);
+    const staffToken = req.cookies?.staff_refresh;
+    await this.auth.logout(staffToken ?? req.cookies?.refresh_token, res, staffToken ? 'staff' : 'buyer');
     return res.json({ ok: true });
   }
 
@@ -137,7 +140,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res() res: Response) {
     const user = await this.auth.verifyPassword(dto.username, dto.password);
-    await this.auth.issueSession(user, res, req.headers['user-agent']);
+    await this.auth.issueSession(user, res, req.headers['user-agent'], 'staff');
     return res.json({ ok: true });
   }
 

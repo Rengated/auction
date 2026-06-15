@@ -9,11 +9,21 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 const ACCESS_TTL_SEC = 15 * 60;
 const REFRESH_TTL_SEC = 30 * 24 * 3600;
 
+/** Аудитория токена: покупатель (Яндекс, осн. сайт) или персонал (логин/пароль, админка). */
+export type Audience = 'buyer' | 'staff';
+
 export interface JwtPayload {
   sub: string;
   role: Role;
   name: string;
+  aud: Audience;
 }
+
+/** Имена кук по аудитории. Staff-куки host-only (только admin-домен), buyer — общий домен. */
+const COOKIE_NAMES: Record<Audience, { access: string; refresh: string }> = {
+  buyer: { access: 'access_token', refresh: 'refresh_token' },
+  staff: { access: 'staff_access', refresh: 'staff_refresh' },
+};
 
 export interface YandexProfile {
   yandexId: string;
@@ -73,9 +83,9 @@ export class AuthService {
     return user;
   }
 
-  async issueSession(user: User, res: Response, userAgent?: string): Promise<void> {
+  async issueSession(user: User, res: Response, userAgent: string | undefined, audience: Audience): Promise<void> {
     const access = await this.jwt.signAsync(
-      { sub: user.id, role: user.role, name: user.displayName } satisfies JwtPayload,
+      { sub: user.id, role: user.role, name: user.displayName, aud: audience } satisfies JwtPayload,
       { expiresIn: ACCESS_TTL_SEC },
     );
     const refresh = randomBytes(48).toString('base64url');
@@ -87,54 +97,45 @@ export class AuthService {
         expiresAt: new Date(Date.now() + REFRESH_TTL_SEC * 1000),
       },
     });
-    this.setCookies(res, access, refresh);
+    this.setCookies(res, access, refresh, audience);
   }
 
-  private setCookies(res: Response, access: string, refresh: string): void {
+  /** Домен куки: buyer — общий (.DOMAIN, для OAuth-callback), staff — host-only (только админ-домен). */
+  private cookieDomain(audience: Audience): string | undefined {
+    return audience === 'buyer' ? process.env.COOKIE_DOMAIN || undefined : undefined;
+  }
+
+  private setCookies(res: Response, access: string, refresh: string, audience: Audience): void {
     const secure = process.env.NODE_ENV === 'production';
-    // COOKIE_DOMAIN (например, ".auction.example.ru") делит сессию между
-    // основным доменом и admin-поддоменом — нужно для OAuth-callback в проде
-    const domain = process.env.COOKIE_DOMAIN || undefined;
-    res.cookie('access_token', access, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure,
-      domain,
-      maxAge: ACCESS_TTL_SEC * 1000,
-      path: '/',
-    });
-    res.cookie('refresh_token', refresh, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure,
-      domain,
-      maxAge: REFRESH_TTL_SEC * 1000,
-      path: '/',
-    });
+    const domain = this.cookieDomain(audience);
+    const names = COOKIE_NAMES[audience];
+    res.cookie(names.access, access, { httpOnly: true, sameSite: 'lax', secure, domain, maxAge: ACCESS_TTL_SEC * 1000, path: '/' });
+    res.cookie(names.refresh, refresh, { httpOnly: true, sameSite: 'lax', secure, domain, maxAge: REFRESH_TTL_SEC * 1000, path: '/' });
   }
 
-  /** Ротация refresh-токена: старый отзывается, выдаётся новая пара. */
-  async refreshSession(refreshToken: string, res: Response, userAgent?: string): Promise<User> {
+  /** Ротация refresh-токена: старый отзывается, выдаётся новая пара (в той же аудитории). */
+  async refreshSession(refreshToken: string, res: Response, userAgent: string | undefined, audience: Audience): Promise<User> {
     const row = await this.prisma.refreshToken.findFirst({
       where: { tokenHash: this.hash(refreshToken), revokedAt: null, expiresAt: { gt: new Date() } },
       include: { user: true },
     });
     if (!row) throw new UnauthorizedException('Invalid refresh token');
     await this.prisma.refreshToken.update({ where: { id: row.id }, data: { revokedAt: new Date() } });
-    await this.issueSession(row.user, res, userAgent);
+    await this.issueSession(row.user, res, userAgent, audience);
     return row.user;
   }
 
-  async logout(refreshToken: string | undefined, res: Response): Promise<void> {
+  async logout(refreshToken: string | undefined, res: Response, audience: Audience): Promise<void> {
     if (refreshToken) {
       await this.prisma.refreshToken.updateMany({
         where: { tokenHash: this.hash(refreshToken), revokedAt: null },
         data: { revokedAt: new Date() },
       });
     }
-    const domain = process.env.COOKIE_DOMAIN || undefined;
-    res.clearCookie('access_token', { path: '/', domain });
-    res.clearCookie('refresh_token', { path: '/', domain });
+    const domain = this.cookieDomain(audience);
+    const names = COOKIE_NAMES[audience];
+    res.clearCookie(names.access, { path: '/', domain });
+    res.clearCookie(names.refresh, { path: '/', domain });
   }
 
   verifyAccess(token: string): JwtPayload {

@@ -15,6 +15,9 @@ export class RolesGuard implements CanActivate {
     if (!roles || roles.length === 0) return true;
     const user = ctx.switchToHttp().getRequest().user;
     if (!user || !roles.includes(user.role)) throw new ForbiddenException();
+    // Ролевые эндпоинты (manager/admin) доступны только по staff-токену:
+    // покупательская (Яндекс) сессия не даёт доступ в админку, даже если роль совпала.
+    if (user.aud !== 'staff') throw new ForbiddenException();
     return true;
   }
 }

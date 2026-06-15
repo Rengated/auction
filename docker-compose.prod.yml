@@ -82,7 +82,9 @@ services:
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://${DOMAIN}/api}
       WEB_ORIGIN: https://${DOMAIN:?задайте DOMAIN в .env}
       ADMIN_ORIGIN: https://admin.${DOMAIN}
-      # Сессия делится между DOMAIN и admin.DOMAIN (OAuth-callback приходит на основной домен)
+      # COOKIE_DOMAIN влияет ТОЛЬКО на покупательские куки (Яндекс): общий домен нужен,
+      # т.к. OAuth-callback приходит на основной домен. Staff-куки (логин/пароль в админке)
+      # выдаются host-only на admin.DOMAIN и сюда не относятся — сессии не смешиваются.
       COOKIE_DOMAIN: .${DOMAIN}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1

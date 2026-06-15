@@ -21,11 +21,13 @@ export class JwtAuthGuard implements CanActivate {
       ctx.getClass(),
     ]);
     const req = ctx.switchToHttp().getRequest();
-    const token: string | undefined = req.cookies?.access_token;
+    // Staff-кука (host-only на админ-домене) приоритетнее. На осн. сайте её нет —
+    // там используется покупательская access_token. Так аудитории не смешиваются.
+    const token: string | undefined = req.cookies?.staff_access ?? req.cookies?.access_token;
     if (token) {
       try {
         const payload = this.auth.verifyAccess(token);
-        req.user = { id: payload.sub, role: payload.role, displayName: payload.name };
+        req.user = { id: payload.sub, role: payload.role, displayName: payload.name, aud: payload.aud };
       } catch {
         req.user = null;
       }

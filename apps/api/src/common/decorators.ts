@@ -12,6 +12,8 @@ export interface AuthUser {
   id: string;
   role: Role;
   displayName: string;
+  /** Аудитория токена: 'buyer' (Яндекс, осн. сайт) или 'staff' (логин/пароль, админка). */
+  aud: 'buyer' | 'staff';
 }
 
 /** Текущий пользователь из JWT (null на @Public-роутах без cookie). */
