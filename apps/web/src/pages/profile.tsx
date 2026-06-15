@@ -297,8 +297,12 @@ function NotifList({ mobile }: { mobile: boolean }) {
           <div
             style={{
               display: 'flex', flexDirection: 'column', gap: 10,
-              // На десктопе список ограничен по высоте и скроллится; на мобиле скролл даёт .body
-              ...(mobile ? {} : { maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', overscrollBehavior: 'contain', paddingRight: 4 }),
+              // Список уведомлений скроллится отдельным контейнером и на десктопе, и на мобиле
+              // (тоглы/настройки сверху остаются на месте). Высота — от вьюпорта.
+              maxHeight: mobile ? 'calc(100vh - 250px)' : 'calc(100vh - 320px)',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              paddingRight: 4,
             }}
           >
           {groups.map(([label, list]) => (
