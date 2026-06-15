@@ -250,7 +250,7 @@ export interface Page<T> {
 export const PAGE_LIMITS = {
   catalog: 24,
   myBids: 20,
-  admin: 30,
+  admin: 20,
 } as const;
 
 /** Жёсткий потолок размера страницы (чтобы клиент не запросил гигантскую). */
