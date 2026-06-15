@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './styles/tokens.css';
 import { queryClient, useMe } from './lib/queries';
 import { getSocket } from './lib/ws';
@@ -16,6 +16,7 @@ import { LivePage } from './pages/live';
 import { LotPage } from './pages/lot';
 import { MyBidsPage } from './pages/my-bids';
 import { ProfilePage } from './pages/profile';
+import { NotFoundPage } from './pages/not-found';
 
 /** Цвет браузерного хрома под тему (--bg из tokens.css). */
 const THEME_COLOR = { dark: '#101216', light: '#f7f7f5' } as const;
@@ -102,7 +103,7 @@ function Router() {
         <Route path="/my-bids" element={page(<MyBidsPage />)} />
         <Route path="/profile" element={page(<ProfilePage />)} />
         <Route path="/profile/:page" element={page(<ProfilePage />, false)} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={guestPage(<NotFoundPage />)} />
       </Routes>
       <AuthPromptModal />
     </BrowserRouter>

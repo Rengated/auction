@@ -13,6 +13,7 @@ import {
   type LotDto,
 } from '@hermes/shared';
 import { useLot, useBidsFeed, useConfig, useToggleFavorite } from '../lib/queries';
+import { NotFoundPage } from './not-found';
 import { useBidForm } from '../lib/bid-form';
 import { useLotRoom } from '../lib/ws';
 import { useNow, leftSec } from '../lib/time';
@@ -492,11 +493,15 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
 
 export function LotPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: lot } = useLot(id);
+  const { data: lot, isLoading, isError } = useLot(id);
   const { data: feed = [] } = useBidsFeed(id);
   const isMobile = useIsMobile();
   useLotRoom(id);
 
+  // Лот не найден / снят с публикации / в архиве → 404 (а не вечный лоадер).
+  if (isError || (!isLoading && !lot)) {
+    return <NotFoundPage title="Лот не найден" text="Лот снят с публикации, продан или ссылка устарела." />;
+  }
   if (!lot) {
     return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Загрузка…</div>;
   }
