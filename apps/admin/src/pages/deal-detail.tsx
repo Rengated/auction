@@ -6,7 +6,7 @@ import { useToast } from '../components/toast';
 import { useDeal, usePatchDeal, type AdminDeal } from '../lib/queries';
 import { DEAL_STATUS } from './deals';
 
-const STATUS_ORDER: AdminDeal['status'][] = ['in_progress', 'completed', 'cancelled'];
+const STATUS_ORDER: AdminDeal['status'][] = ['won', 'contacted', 'signed', 'delivered', 'cancelled'];
 
 export function DealDetailPage() {
   const { id } = useParams();
@@ -73,8 +73,8 @@ export function DealDetailPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 {STATUS_ORDER.map((s) => {
                   const active = deal.status === s;
-                  const color = s === 'in_progress' ? 'var(--gold)' : s === 'completed' ? 'var(--ok)' : 'var(--dim)';
-                  const soft = s === 'in_progress' ? 'var(--gold-soft)' : s === 'completed' ? 'var(--ok-soft)' : 'var(--panel3)';
+                  const color = s === 'delivered' ? 'var(--ok)' : s === 'cancelled' ? 'var(--dim)' : 'var(--gold)';
+                  const soft = s === 'delivered' ? 'var(--ok-soft)' : s === 'cancelled' ? 'var(--panel3)' : 'var(--gold-soft)';
                   return (
                     <button
                       key={s}
@@ -95,11 +95,11 @@ export function DealDetailPage() {
                 })}
               </div>
               <div className="hint" style={{ margin: 0 }}>
-                {deal.status === 'completed' && deal.closedAt
-                  ? `Сделка завершена ${new Date(deal.closedAt).toLocaleString('ru-RU')}.`
+                {deal.status === 'delivered' && deal.closedAt
+                  ? `Автомобиль выдан ${new Date(deal.closedAt).toLocaleString('ru-RU')}.`
                   : deal.status === 'cancelled'
                     ? 'Сделка отменена — покупатель уведомлён.'
-                    : 'Сделка в работе: связь с победителем, договор, оплата, выдача.'}
+                    : 'Этапы: выигран → связались → документы → выдана.'}
               </div>
             </div>
           </div>

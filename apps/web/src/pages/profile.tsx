@@ -38,8 +38,10 @@ const NOTIF_META: Record<NotificationDto['type'], { title: string; dot: string }
 };
 
 const DEAL_TITLES: Record<DealStatus, string> = {
-  in_progress: 'Сделка на оформлении',
-  completed: 'Сделка завершена',
+  won: 'Лот выигран — оформляем сделку',
+  contacted: 'Менеджер связался с вами',
+  signed: 'Документы подписаны',
+  delivered: 'Автомобиль выдан',
   cancelled: 'Сделка отменена',
 };
 
@@ -336,8 +338,10 @@ function NotifList({ mobile }: { mobile: boolean }) {
 
 /** Статус сделки выигранного лота → [подпись, цвет]. */
 const DEAL_STATUS_META: Record<DealStatus, [string, string]> = {
-  in_progress: ['На оформлении · менеджер свяжется', 'var(--gold)'],
-  completed: ['Сделка завершена', 'var(--ok)'],
+  won: ['Выигран · менеджер свяжется', 'var(--gold)'],
+  contacted: ['Менеджер связался с вами', 'var(--gold)'],
+  signed: ['Документы подписаны', 'var(--gold)'],
+  delivered: ['Автомобиль выдан', 'var(--ok)'],
   cancelled: ['Сделка отменена', 'var(--text-faint)'],
 };
 
@@ -350,7 +354,7 @@ function WonList({ mobile }: { mobile: boolean }) {
     return <div className="card" style={{ padding: '22px 16px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Пока нет выигранных лотов</div>;
   }
   const status = (row: MyBidRow): [string, string] =>
-    DEAL_STATUS_META[row.dealStatus ?? 'in_progress'];
+    DEAL_STATUS_META[row.dealStatus ?? 'won'];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {won.map((row) => {

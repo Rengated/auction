@@ -23,9 +23,11 @@ enum LotStatus {
 }
 
 enum DealStatus {
-  in_progress
-  completed
-  cancelled
+  won        // лот сыграл, сделка создана автоматически
+  contacted  // администратор связался с победителем
+  signed     // документы подписаны в офисе
+  delivered  // машина выдана — комиссия реально получена (ставим closedAt)
+  cancelled  // сделка сорвалась
 }
 
 enum NotificationType {
@@ -198,7 +200,7 @@ model Deal {
   /** Снимок ставки комиссии на момент закрытия торгов */
   feeRate      Decimal    @map("fee_rate") @db.Decimal(6, 4)
   feeAmount    BigInt     @map("fee_amount")
-  status       DealStatus @default(in_progress)
+  status       DealStatus @default(won)
   note         String     @default("")
   managerId    String?    @map("manager_id") @db.Uuid
   manager      User?      @relation("manager", fields: [managerId], references: [id])

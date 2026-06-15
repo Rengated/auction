@@ -64,7 +64,7 @@ const DEAL_INCLUDE = {
 } as const;
 
 class DealPatchDto {
-  @IsOptional() @IsIn(['in_progress', 'completed', 'cancelled']) status?: DealStatus;
+  @IsOptional() @IsIn(['won', 'contacted', 'signed', 'delivered', 'cancelled']) status?: DealStatus;
   @IsOptional() @IsString() note?: string;
 }
 
@@ -108,7 +108,9 @@ export class AdminDealsController {
       data: {
         status: dto.status,
         note: dto.note,
-        closedAt: dto.status === 'completed' ? new Date() : dto.status === 'in_progress' ? null : undefined,
+        // closedAt = дата выдачи: ставим при delivered, снимаем при откате на ранний этап.
+        closedAt:
+          dto.status === 'delivered' ? new Date() : dto.status && dto.status !== 'cancelled' ? null : undefined,
       },
       include: DEAL_INCLUDE,
     });

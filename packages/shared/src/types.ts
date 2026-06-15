@@ -170,7 +170,7 @@ export interface UnreadCountDto {
   count: number;
 }
 
-export type DealStatus = 'in_progress' | 'completed' | 'cancelled';
+export type DealStatus = 'won' | 'contacted' | 'signed' | 'delivered' | 'cancelled';
 
 export interface DealDto {
   id: string;

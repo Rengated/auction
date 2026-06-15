@@ -243,7 +243,7 @@ async function main() {
             lotId: lot.id, winnerUserId: topBid.userId, winningBidId: topBid.id,
             amount: topBid.amount, feeRate: 0.015,
             feeAmount: BigInt(Math.round(Number(topBid.amount) * 0.015)),
-            status: 'in_progress', managerId: manager.id,
+            status: 'won', managerId: manager.id,
           },
         });
       }

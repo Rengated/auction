@@ -5,8 +5,10 @@ import { useDeals, type AdminDeal } from '../lib/queries';
 import { Pagination } from '../components/pagination';
 
 export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
-  in_progress: ['В работе', 'up'],
-  completed: ['Завершена', 'sold'],
+  won: ['Выигран', 'up'],
+  contacted: ['Связались', 'up'],
+  signed: ['Документы', 'up'],
+  delivered: ['Выдана', 'sold'],
   cancelled: ['Отменена', 'fin'],
 };
 

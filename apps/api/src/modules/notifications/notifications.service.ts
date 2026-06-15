@@ -31,8 +31,10 @@ function pushPayload(type: NotificationType, payload: Record<string, unknown>): 
       return { title: 'Лот снят с торгов', body: lotTitle, url, tag: `wd-${payload.lotId}` };
     case 'deal_update': {
       const map: Record<string, { title: string; body: string }> = {
-        in_progress: { title: 'Сделка на оформлении', body: `${lotTitle} — менеджер свяжется с вами` },
-        completed: { title: 'Сделка завершена', body: `${lotTitle} — поздравляем с покупкой` },
+        won: { title: 'Лот выигран', body: `${lotTitle} — менеджер свяжется с вами` },
+        contacted: { title: 'Менеджер связался с вами', body: `${lotTitle} — согласуйте встречу в салоне` },
+        signed: { title: 'Документы подписаны', body: `${lotTitle} — осталась выдача автомобиля` },
+        delivered: { title: 'Автомобиль выдан', body: `${lotTitle} — поздравляем с покупкой!` },
         cancelled: { title: 'Сделка отменена', body: lotTitle },
       };
       const m = map[String(payload.status)] ?? { title: 'Статус сделки обновлён', body: lotTitle };
