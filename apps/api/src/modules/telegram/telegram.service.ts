@@ -101,7 +101,8 @@ export class TelegramService {
       const photo = [...lot.photos].sort((a, b) => a.sort - b.sort).find((p) => p.kind === 'photo');
       // sendPhoto файлом (multipart): качаем фото на стороне API и шлём телом запроса.
       // Так Telegram'у не нужен доступ к нашему URL, а JPEG он принимает в отличие от WebP.
-      if (event === 'published' && photo) {
+      // Фото добавляем во все события (опубликован/торги идут/продан/завершены/снят).
+      if (photo) {
         const jpeg = await this.fetchPhotoJpeg(photo).catch((e) => {
           this.logger.warn(`fetchPhotoJpeg(${photo.id}) failed: ${(e as Error).message}`);
           return null;
