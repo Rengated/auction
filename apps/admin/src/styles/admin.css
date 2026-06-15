@@ -144,4 +144,6 @@ textarea.in{resize:vertical;min-height:84px;}
 .login-stage{min-height:100vh;display:grid;place-items:center;background:var(--bg);}
 .login-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:36px;max-width:400px;width:100%;box-shadow:0 24px 60px -30px rgba(20,24,30,.25);}
 table.tb .empty{padding:40px 20px;text-align:center;color:var(--faint);}
-.toast{position:fixed;right:24px;bottom:24px;background:var(--ink);color:#fff;border-radius:10px;padding:13px 18px;font:600 13.5px/1 var(--ui);z-index:99;animation:fd .2s ease;}
+.toast-stack{position:fixed;right:24px;bottom:24px;z-index:99;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
+.toast{background:var(--ink);color:#fff;border-radius:10px;padding:13px 18px;font:600 13.5px/1.35 var(--ui);max-width:360px;box-shadow:0 12px 30px -12px rgba(20,24,30,.45);cursor:pointer;animation:fd .2s ease;}
+.toast.toast-err{background:#b3261e;}

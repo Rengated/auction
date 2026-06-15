@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fmt } from '@hermes/shared';
 import { AI, Ic } from '../components/icons';
+import { useToast } from '../components/toast';
 import { useDeal, usePatchDeal, type AdminDeal } from '../lib/queries';
 import { DEAL_STATUS } from './deals';
 
@@ -12,6 +13,7 @@ export function DealDetailPage() {
   const navigate = useNavigate();
   const { data: deal } = useDeal(id);
   const patch = usePatchDeal(id ?? '');
+  const toast = useToast();
 
   const [note, setNote] = useState('');
   useEffect(() => {
@@ -78,7 +80,7 @@ export function DealDetailPage() {
                       key={s}
                       className="btn sm"
                       disabled={patch.isPending}
-                      onClick={() => !active && patch.mutate({ status: s })}
+                      onClick={() => !active && patch.mutate({ status: s }, { onSuccess: () => toast.ok('Статус сделки обновлён'), onError: (e) => toast.error(`Не удалось обновить статус: ${e.message}`) })}
                       style={{
                         flex: 1,
                         justifyContent: 'center',
@@ -130,7 +132,7 @@ export function DealDetailPage() {
             <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <label className="fld-l" style={{ margin: 0 }}>Заметка по сделке</label>
               <textarea className="in" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Договорённости, сроки, особенности оплаты…" style={{ minHeight: 90 }}></textarea>
-              <button className="btn sm" disabled={patch.isPending} onClick={() => patch.mutate({ note })}>Сохранить заметку</button>
+              <button className="btn sm" disabled={patch.isPending} onClick={() => patch.mutate({ note }, { onSuccess: () => toast.ok('Заметка сохранена'), onError: (e) => toast.error(`Не удалось сохранить: ${e.message}`) })}>Сохранить заметку</button>
             </div>
           </div>
         </div>

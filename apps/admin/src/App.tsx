@@ -5,6 +5,7 @@ import './styles/admin.css';
 import { logout, queryClient, useAdminLots, useLogin, useMe } from './lib/queries';
 import { getSocket } from './lib/ws';
 import { AI, HermesH } from './components/icons';
+import { ToastProvider } from './components/toast';
 import { DashboardPage } from './pages/dashboard';
 import { LotsPage } from './pages/lots';
 import { LotFormPage } from './pages/lot-form';
@@ -210,6 +211,7 @@ function Gate({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <BrowserRouter>
         <Gate>
           <Routes>
@@ -228,6 +230,7 @@ export function App() {
           </Routes>
         </Gate>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

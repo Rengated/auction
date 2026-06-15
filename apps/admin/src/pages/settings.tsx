@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fmt, NOTIFICATION_EVENTS, type NotificationEvent } from '@hermes/shared';
 import {
   useAddresses,
@@ -8,6 +8,7 @@ import {
   useSettings,
   type AdminSettings,
 } from '../lib/queries';
+import { useToast } from '../components/toast';
 
 function Stepper({ val, set, delta, suf, fmtv }: { val: number; set: (n: number) => void; delta: number; suf: string; fmtv?: (n: number) => string }) {
   const round = (n: number) => Math.round(n * 10000) / 10000;
@@ -58,13 +59,11 @@ export function SettingsPage() {
   const deleteAddress = useDeleteAddress();
   const [addr, setAddr] = useState({ label: '', fullAddress: '', city: '' });
   const [form, setForm] = useState<AdminSettings | null>(null);
-  const [toast, setToast] = useState(false);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toast = useToast();
 
   useEffect(() => {
     if (data && !form) setForm(data);
   }, [data, form]);
-  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   if (!form) return <div className="content fade" />;
 
@@ -82,11 +81,8 @@ export function SettingsPage() {
 
   const onSave = () =>
     save.mutate(form, {
-      onSuccess: () => {
-        setToast(true);
-        clearTimeout(toastTimer.current);
-        toastTimer.current = setTimeout(() => setToast(false), 2000);
-      },
+      onSuccess: () => toast.ok('Сохранено'),
+      onError: (e) => toast.error(`Не удалось сохранить: ${e.message}`),
     });
 
   return (
@@ -314,7 +310,6 @@ export function SettingsPage() {
           <button className="btn acc" disabled={save.isPending} onClick={onSave}>Сохранить параметры</button>
         </div>
       </div>
-      {toast && <div className="toast">Сохранено</div>}
     </div>
   );
 }

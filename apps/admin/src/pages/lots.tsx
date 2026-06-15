@@ -11,6 +11,7 @@ import {
 } from '../lib/queries';
 import { AI, Ic, Sb } from '../components/icons';
 import { Pagination } from '../components/pagination';
+import { useToast } from '../components/toast';
 
 const TABS: Array<[AdminLotsFilter, string]> = [
   ['all', 'Все'],
@@ -57,6 +58,7 @@ export function LotsPage() {
   const { data: drafts } = useAdminLots('draft');
   const publish = usePublishLot();
   const unpublish = useUnpublishLot();
+  const toast = useToast();
   const draftCount = drafts?.total ?? 0;
   const setFilter = (nf: AdminLotsFilter) => {
     setF(nf);
@@ -65,7 +67,13 @@ export function LotsPage() {
 
   const onUnpublish = (l: AdminLot) => {
     if (!window.confirm('Снять лот с публикации? Он вернётся в черновики.')) return;
-    unpublish.mutate({ id: l.id, payload: rowToPayload(l, false) });
+    unpublish.mutate(
+      { id: l.id, payload: rowToPayload(l, false) },
+      {
+        onSuccess: () => toast.ok('Лот снят с публикации'),
+        onError: (e) => toast.error(`Не удалось снять с публикации: ${e.message}`),
+      },
+    );
   };
 
   return (
@@ -112,7 +120,7 @@ export function LotsPage() {
                 <td>
                   <div className="row-actions">
                     {!l.published && (
-                      <button className="btn sm" disabled={publish.isPending} onClick={() => publish.mutate(l.id)}>Опубликовать</button>
+                      <button className="btn sm" disabled={publish.isPending} onClick={() => publish.mutate(l.id, { onSuccess: () => toast.ok('Лот опубликован'), onError: (e) => toast.error(`Не удалось опубликовать: ${e.message}`) })}>Опубликовать</button>
                     )}
                     {l.published && (l.status === 'upcoming' || l.status === 'draft') && l.bidCount === 0 && (
                       <button className="btn sm" disabled={unpublish.isPending} onClick={() => onUnpublish(l)}>Снять с публикации</button>
