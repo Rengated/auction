@@ -6,12 +6,14 @@ import {
   useCreateStaff,
   useDeleteUser,
   useMe,
+  usePatchStaff,
   usePatchUser,
   useSetStaffPassword,
   useUsers,
   type AdminUser,
   type UsersFilter,
 } from '../lib/queries';
+import { useToast } from '../components/toast';
 
 const ROLE_LABEL: Record<AdminUser['role'], string> = { buyer: 'Покупатель', manager: 'Менеджер', admin: 'Админ' };
 
@@ -21,7 +23,6 @@ const blockLabel = (u: AdminUser) =>
 
 function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
   const patch = usePatchUser();
-  const [role, setRole] = useState<AdminUser['role']>(user.role);
   const [blocked, setBlocked] = useState(isBlocked(user));
   const [mode, setMode] = useState<'until' | 'perm'>(user.blockPermanent ? 'perm' : 'until');
   const [until, setUntil] = useState(user.blockedUntil ? user.blockedUntil.slice(0, 10) : '');
@@ -32,7 +33,6 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
     patch.mutate(
       {
         id: user.id,
-        role,
         blockedUntil: blocked ? (mode === 'perm' ? 'perm' : new Date(`${until}T23:59:59`).toISOString()) : null,
         blockReason: blocked ? reason : '',
       },
@@ -72,28 +72,11 @@ function UserCard({ user, onBack }: { user: AdminUser; onBack: () => void }) {
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label className="fld-l">Роль</label>
-                <div style={{ display: 'flex', gap: 7 }}>
-                  {(
-                    [['buyer', 'Покупатель'], ['manager', 'Менеджер'], ['admin', 'Админ']] as Array<[AdminUser['role'], string]>
-                  ).map(([k, l]) => (
-                    <button
-                      key={k}
-                      className="btn sm"
-                      onClick={() => setRole(k)}
-                      style={{
-                        flex: 1,
-                        justifyContent: 'center',
-                        ...(role === k
-                          ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
-                          : { background: 'transparent', border: '1px solid var(--line2)' }),
-                      }}
-                    >
-                      {l}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="sb" style={{ background: 'var(--panel3)', color: 'var(--dim)' }}>{ROLE_LABEL[user.role]}</span>
                 </div>
                 <div className="hint">
-                  {role === 'buyer' ? 'Может делать ставки и выигрывать лоты.' : role === 'manager' ? 'Доступ к админке: лоты, торги, сделки.' : 'Полный доступ, включая параметры.'}
+                  Покупатель (вход через Яндекс ID). Роль не меняется — сотрудники создаются отдельно в разделе «Персонал».
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
@@ -281,12 +264,41 @@ function StaffPasswordForm({ user, onDone }: { user: AdminUser; onDone: () => vo
   );
 }
 
+function StaffEditForm({ user, onDone }: { user: AdminUser; onDone: () => void }) {
+  const patchStaff = usePatchStaff();
+  const toast = useToast();
+  const [name, setName] = useState(user.name);
+  const [role, setRole] = useState<'manager' | 'admin'>(user.role === 'admin' ? 'admin' : 'manager');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (patchStaff.isPending || !name.trim()) return;
+    patchStaff.mutate(
+      { id: user.id, displayName: name.trim(), role },
+      { onSuccess: () => { toast.ok('Сотрудник обновлён'); onDone(); }, onError: (err) => toast.error(err.message) },
+    );
+  };
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <input className="in" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя" style={{ width: 160 }} />
+      <select className="in" value={role} onChange={(e) => setRole(e.target.value as 'manager' | 'admin')} style={{ width: 130 }}>
+        <option value="manager">Менеджер</option>
+        <option value="admin">Админ</option>
+      </select>
+      <button type="submit" className="btn acc sm" disabled={patchStaff.isPending || !name.trim()}>Сохранить</button>
+      <button type="button" className="btn ghost sm" onClick={onDone}>Отмена</button>
+    </form>
+  );
+}
+
 function StaffPanel() {
   // Фильтр 'manager' на бэке = role in (manager, admin) = ровно штат
   const { data } = useUsers('manager');
   const staff = data?.items ?? [];
   const [creating, setCreating] = useState(false);
   const [pwFor, setPwFor] = useState<string | null>(null);
+  const [editFor, setEditFor] = useState<string | null>(null);
 
   return (
     <div className="pcard">
@@ -318,10 +330,15 @@ function StaffPanel() {
                   <span className="sb" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>{ROLE_LABEL[u.role]}</span>
                 </td>
                 <td>
-                  {pwFor === u.id ? (
+                  {editFor === u.id ? (
+                    <StaffEditForm user={u} onDone={() => setEditFor(null)} />
+                  ) : pwFor === u.id ? (
                     <StaffPasswordForm user={u} onDone={() => setPwFor(null)} />
                   ) : (
-                    <button className="btn ghost sm" onClick={() => setPwFor(u.id)}>Сменить пароль</button>
+                    <div className="row-actions">
+                      <button className="btn ghost sm" onClick={() => { setEditFor(u.id); setPwFor(null); }}>Изменить</button>
+                      <button className="btn ghost sm" onClick={() => { setPwFor(u.id); setEditFor(null); }}>Сменить пароль</button>
+                    </div>
                   )}
                 </td>
               </tr>

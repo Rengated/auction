@@ -127,7 +127,8 @@ export class AdminDealsController {
 }
 
 class UserPatchDto {
-  @IsOptional() @IsIn(['buyer', 'manager', 'admin']) role?: Role;
+  // Роль покупателя не меняется через этот эндпоинт: покупатель всегда buyer,
+  // персонал управляется отдельно в /admin/staff (только admin). См. 7b/7c.
   /** ISO-дата, 'perm' (навсегда) или null (снять блокировку) */
   @IsOptional() blockedUntil?: string | null;
   @IsOptional() @IsString() blockReason?: string;
@@ -198,7 +199,6 @@ export class AdminUsersController {
     await this.prisma.user.update({
       where: { id },
       data: {
-        role: dto.role,
         blockedUntil,
         blockReason: dto.blockedUntil === null ? null : dto.blockReason,
         fullName: dto.fullName,
@@ -242,6 +242,11 @@ class SetPasswordDto {
   @IsString() @MinLength(6) password!: string;
 }
 
+class StaffPatchDto {
+  @IsOptional() @IsString() @IsNotEmpty() displayName?: string;
+  @IsOptional() @IsIn(['manager', 'admin']) role?: Role;
+}
+
 /** Управление персоналом (admin/manager-аккаунты) — только для role=admin. */
 @Roles('admin')
 @Controller('admin/staff')
@@ -274,6 +279,22 @@ export class AdminStaffController {
     await this.prisma.user.update({
       where: { id },
       data: { passwordHash: await this.auth.hashPassword(dto.password) },
+    });
+    return { ok: true };
+  }
+
+  /** Редактирование сотрудника: имя и роль (manager/admin). Покупателя не трогаем. */
+  @Patch(':id')
+  async patch(@Param('id', ParseUUIDPipe) id: string, @Body() dto: StaffPatchDto, @CurrentUser() actor: AuthUser) {
+    const u = await this.prisma.user.findUnique({ where: { id } });
+    if (!u || u.role === 'buyer') throw new BadRequestException('Не сотрудник');
+    // Нельзя понизить самого себя в роли (иначе можно потерять доступ к админке).
+    if (actor!.id === id && dto.role && dto.role !== u.role) {
+      throw new BadRequestException('Нельзя изменить свою роль');
+    }
+    await this.prisma.user.update({
+      where: { id },
+      data: { displayName: dto.displayName, role: dto.role },
     });
     return { ok: true };
   }

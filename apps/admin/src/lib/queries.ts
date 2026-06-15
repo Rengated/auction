@@ -372,7 +372,6 @@ export function usePatchUser() {
     ApiError,
     {
       id: string;
-      role?: AdminUser['role'];
       blockedUntil?: string | null;
       blockReason?: string;
       fullName?: string;
@@ -381,6 +380,15 @@ export function usePatchUser() {
     }
   >({
     mutationFn: ({ id, ...data }) => patch(`/admin/users/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+}
+
+/** Редактирование сотрудника (имя/роль), только admin. */
+export function usePatchStaff() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: true }, ApiError, { id: string; displayName?: string; role?: 'manager' | 'admin' }>({
+    mutationFn: ({ id, ...data }) => patch(`/admin/staff/${id}`, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 }
