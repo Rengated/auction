@@ -3,17 +3,20 @@ import { API_ORIGIN } from './api';
 const RETURN_KEY = 'hermes-return';
 
 /**
- * Уход на Яндекс OAuth с сохранением текущего пути — чтобы после входа
- * вернуть гостя на ту же страницу (лот), а не на главную.
+ * Запомнить текущий путь для возврата после входа — вызывается перед переходом
+ * на /auth (из модалки), чтобы после авторизации вернуть гостя на ту же страницу.
  */
-export function goYandex(): void {
+export function rememberReturn(): void {
   const path = location.pathname + location.search;
-  // /auth и корень не сохраняем (иначе зацикливание / лишний редирект)
   if (path !== '/' && !path.startsWith('/auth')) {
     localStorage.setItem(RETURN_KEY, path);
   } else {
     localStorage.removeItem(RETURN_KEY);
   }
+}
+
+/** Уход на Яндекс OAuth (со страницы /auth). Return-path уже сохранён rememberReturn(). */
+export function goYandex(): void {
   window.location.href = `${API_ORIGIN}/auth/yandex?target=web`;
 }
 

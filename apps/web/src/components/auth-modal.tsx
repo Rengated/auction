@@ -1,17 +1,20 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useUiStore } from '../lib/ui-store';
 import { useIsMobile } from '../lib/layout';
-import { goYandex } from '../lib/auth';
-import { YandexGlyph, YA_RED, HermesH } from './brand';
+import { rememberReturn } from '../lib/auth';
+import { HermesH } from './brand';
 import { I, Ic } from './icons';
 
 /**
- * Приглашение войти поверх контента (не редирект): боттом-шит на мобильном,
- * центрированная модалка на вебе. Гость остаётся на странице (закрывается крестиком).
+ * Приглашение войти поверх контента (не редирект на действие): боттом-шит на
+ * мобильном, центрированная модалка на вебе. Кнопка ведёт на /auth, где согласие
+ * с политикой и вход через Яндекс. Гость остаётся на странице (закрывается крестиком).
  */
 export function AuthPromptModal() {
   const { open, reason } = useUiStore((s) => s.authPrompt);
   const close = useUiStore((s) => s.closeAuthPrompt);
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   // Esc закрывает; блокируем скролл фона пока открыто
@@ -29,11 +32,11 @@ export function AuthPromptModal() {
 
   if (!open) return null;
 
-  const perks = [
-    ['🔨', 'Ставки в реальном времени без депозита'],
-    ['🔔', 'Уведомления о перебитии и старте лотов'],
-    ['🤝', 'Менеджер сопровождает сделку после победы'],
-  ] as const;
+  const goAuth = () => {
+    rememberReturn(); // вернуть на текущую страницу после входа
+    close();
+    navigate('/auth');
+  };
 
   const card = (
     <div
@@ -42,9 +45,9 @@ export function AuthPromptModal() {
         background: 'var(--surface)',
         border: '1px solid var(--line)',
         width: '100%',
-        maxWidth: isMobile ? '100%' : 420,
+        maxWidth: isMobile ? '100%' : 400,
         borderRadius: isMobile ? '20px 20px 0 0' : 18,
-        padding: isMobile ? '8px 22px calc(24px + env(safe-area-inset-bottom))' : '28px 28px 26px',
+        padding: isMobile ? '8px 22px calc(24px + env(safe-area-inset-bottom))' : '26px 28px 24px',
         boxShadow: '0 -8px 40px rgba(0,0,0,.4)',
         animation: isMobile ? 'sheetUp .26s cubic-bezier(.2,.8,.2,1)' : 'modalIn .2s ease',
       }}
@@ -52,7 +55,7 @@ export function AuthPromptModal() {
       {isMobile && (
         <div style={{ width: 38, height: 4, borderRadius: 3, background: 'var(--line2, var(--line))', margin: '0 auto 18px' }} />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, color: 'var(--text)', fontWeight: 700 }}>
           <HermesH size={22} color="var(--accent)" /> Hermes Trade
         </span>
@@ -68,25 +71,16 @@ export function AuthPromptModal() {
       <h2 style={{ font: '800 22px/1.18 var(--ui)', letterSpacing: '-0.02em', margin: 0 }}>
         Войдите, чтобы {reason}
       </h2>
-      <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.5, margin: '10px 0 18px' }}>
+      <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.5, margin: '10px 0 20px' }}>
         Просмотр лотов открыт всем. Для участия в торгах нужен быстрый вход через Яндекс ID.
       </p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 22 }}>
-        {perks.map(([icon, text]) => (
-          <div key={text} style={{ display: 'flex', gap: 11, alignItems: 'center' }}>
-            <span style={{ fontSize: 17, flex: 'none', width: 22, textAlign: 'center' }}>{icon}</span>
-            <span style={{ fontSize: 13.5, color: 'var(--text)' }}>{text}</span>
-          </div>
-        ))}
-      </div>
-
       <button
-        className="btn block"
-        style={{ padding: '15px', background: YA_RED, color: '#fff', fontWeight: 700, justifyContent: 'center' }}
-        onClick={goYandex}
+        className="btn block accent"
+        style={{ padding: '15px', fontWeight: 700, justifyContent: 'center' }}
+        onClick={goAuth}
       >
-        <YandexGlyph size={20} /> Войти через Яндекс ID
+        Войти в аккаунт
       </button>
     </div>
   );

@@ -1,5 +1,6 @@
 /* Вход через Яндекс ID: мобильный welcome-экран (hifi-auth.jsx) и веб-сплит (hifi-web-auth.jsx). */
-import { Navigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import type { MeDto } from '@hermes/shared';
 import { logout, useMe } from '../lib/queries';
 import { goYandex } from '../lib/auth';
@@ -8,8 +9,29 @@ import { HermesLogo, YandexGlyph, YA_RED } from '../components/brand';
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=75&auto=format&fit=crop';
 
+/** Чекбокс согласия с политикой/правилами — без него вход недоступен. */
+function ConsentBlock({ agreed, onChange }: { agreed: boolean; onChange: (v: boolean) => void }) {
+  const linkStyle = { color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 } as const;
+  return (
+    <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', margin: '4px 0 14px' }}>
+      <input
+        type="checkbox"
+        checked={agreed}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ width: 18, height: 18, marginTop: 1, accentColor: 'var(--accent)', flex: 'none', cursor: 'pointer' }}
+      />
+      <span style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-dim)' }}>
+        Я соглашаюсь с{' '}
+        <Link to="/legal/privacy" style={linkStyle}>политикой конфиденциальности</Link>{' '}и{' '}
+        <Link to="/legal/terms" style={linkStyle}>правилами сервиса</Link>
+      </span>
+    </label>
+  );
+}
+
 /* Мобильный welcome-экран: hero-фото с градиентом, статы, кнопка Яндекса внизу. */
 function MobileAuth() {
+  const [agreed, setAgreed] = useState(false);
   return (
     <div className="mshell">
       <div className="screen screen-enter">
@@ -32,14 +54,17 @@ function MobileAuth() {
             </div>
           </div>
         </div>
-        <div style={{ flex: 'none', padding: '18px 22px calc(20px + env(safe-area-inset-bottom))' }}>
-          <div style={{ font: '700 17px/1 var(--ui)', marginBottom: 10 }}>Вход в аккаунт</div>
-          <button className="btn block" style={{ padding: '15px', background: YA_RED, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }} onClick={goYandex}>
+        <div style={{ flex: 'none', padding: '16px 22px calc(20px + env(safe-area-inset-bottom))' }}>
+          <div style={{ font: '700 17px/1 var(--ui)', marginBottom: 12 }}>Вход в аккаунт</div>
+          <ConsentBlock agreed={agreed} onChange={setAgreed} />
+          <button
+            className="btn block"
+            disabled={!agreed}
+            style={{ padding: '15px', background: agreed ? YA_RED : 'var(--surface-2, var(--line))', color: agreed ? '#fff' : 'var(--text-faint)', fontWeight: 700, whiteSpace: 'nowrap', cursor: agreed ? 'pointer' : 'not-allowed' }}
+            onClick={() => agreed && goYandex()}
+          >
             <YandexGlyph size={20} /> Войти через Яндекс ID
           </button>
-          <div style={{ textAlign: 'center', marginTop: 12, color: 'var(--text-faint)', fontSize: 11.5, lineHeight: 1.45 }}>
-            Вход и регистрация через Яндекс ID.<br />Нажимая, вы соглашаетесь с условиями сервиса.
-          </div>
         </div>
       </div>
     </div>
@@ -48,6 +73,7 @@ function MobileAuth() {
 
 /* Веб-сплит: слева центрированная форма входа, справа hero с фото и цитатой. */
 function WebAuth() {
+  const [agreed, setAgreed] = useState(false);
   return (
     <div className="web-auth-grid viewfade">
       {/* левая колонка: форма */}
@@ -60,12 +86,17 @@ function WebAuth() {
           <p style={{ color: 'var(--text-dim)', fontSize: 14, marginTop: 12, lineHeight: 1.55 }}>
             Авторизуйтесь через Яндекс ID, чтобы делать ставки и следить за лотами.
           </p>
-          <button className="wbtn" style={{ width: '100%', justifyContent: 'center', padding: '15px', marginTop: 26, background: YA_RED, color: '#fff', fontWeight: 700, fontSize: 15 }} onClick={goYandex}>
+          <div style={{ marginTop: 22 }}>
+            <ConsentBlock agreed={agreed} onChange={setAgreed} />
+          </div>
+          <button
+            className="wbtn"
+            disabled={!agreed}
+            style={{ width: '100%', justifyContent: 'center', padding: '15px', background: agreed ? YA_RED : 'var(--surface-2, var(--line))', color: agreed ? '#fff' : 'var(--text-faint)', fontWeight: 700, fontSize: 15, cursor: agreed ? 'pointer' : 'not-allowed' }}
+            onClick={() => agreed && goYandex()}
+          >
             <YandexGlyph size={20} /> Войти через Яндекс ID
           </button>
-          <div style={{ textAlign: 'center', marginTop: 16, color: 'var(--text-faint)', fontSize: 12, lineHeight: 1.5 }}>
-            Вход и регистрация через Яндекс ID.<br />Нажимая, вы соглашаетесь с условиями сервиса.
-          </div>
         </div>
       </div>
 

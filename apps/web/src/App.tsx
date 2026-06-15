@@ -10,6 +10,7 @@ import { useUiStore } from './lib/ui-store';
 import { MobileShell, WebShell } from './shells';
 import { AuthPromptModal } from './components/auth-modal';
 import { AuthPage, BlockedScreen } from './pages/auth';
+import { LegalPage } from './pages/legal';
 import { CatalogPage } from './pages/catalog';
 import { LivePage } from './pages/live';
 import { LotPage } from './pages/lot';
@@ -94,6 +95,7 @@ function Router() {
       <ReturnRedirect />
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/legal/:doc" element={<LegalPage />} />
         <Route path="/" element={guestPage(<CatalogPage />)} />
         <Route path="/live" element={guestPage(<LivePage />)} />
         <Route path="/lots/:id" element={guestPage(<LotPage />, false)} />
