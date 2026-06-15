@@ -116,9 +116,19 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
             <button style={iconBtn} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} onClick={toggleTheme}>
               {theme === 'dark' ? I.sun : I.moon}
             </button>
-            <button className="avatar" title={me ? 'Профиль' : 'Войти'} onClick={() => navigate(me ? '/profile' : '/auth')}>
-              {me?.avatarUrl ? <img src={me.avatarUrl} alt="" /> : (me?.displayName?.[0] ?? '·').toUpperCase()}
-            </button>
+            {me ? (
+              <button className="avatar" title="Профиль" onClick={() => navigate('/profile')}>
+                {me.avatarUrl ? <img src={me.avatarUrl} alt="" /> : (me.displayName?.[0] ?? '·').toUpperCase()}
+              </button>
+            ) : (
+              <button
+                className="wbtn"
+                style={{ padding: '9px 16px', fontWeight: 700, whiteSpace: 'nowrap', flex: 'none' }}
+                onClick={() => openAuthPrompt('войти в аккаунт')}
+              >
+                Войти
+              </button>
+            )}
           </div>
         </div>
       </div>
