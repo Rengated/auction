@@ -62,6 +62,8 @@ model User {
   contactsFilledAt DateTime? @map("contacts_filled_at") @db.Timestamptz()
   blockedUntil DateTime? @map("blocked_until") @db.Timestamptz()
   blockReason String?   @map("block_reason")
+  /** Архив: мягкое скрытие из списков. Для персонала = запрет входа. */
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
   /** Разреженные переопределения DEFAULT_NOTIFICATION_PREFS из shared */
   notificationPrefs Json @default("{}") @map("notification_prefs")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()

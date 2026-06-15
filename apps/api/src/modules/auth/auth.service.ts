@@ -80,6 +80,7 @@ export class AuthService {
     if (!user || !user.passwordHash) throw new UnauthorizedException('Неверный логин или пароль');
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Неверный логин или пароль');
+    if (user.archivedAt) throw new UnauthorizedException('Аккаунт архивирован — обратитесь к администратору');
     return user;
   }
 

@@ -149,14 +149,18 @@ export class AdminUsersController {
     const limit = page.limit ?? PAGE_LIMITS.admin;
     const offset = page.offset ?? 0;
     const now = new Date();
+    // Архивные скрыты из всех списков, кроме явного фильтра 'archived'.
+    const notArchived = { archivedAt: null };
     const where: Prisma.UserWhereInput =
-      filter === 'blocked'
-        ? { blockedUntil: { gt: now } }
-        : filter === 'manager'
-          ? { role: { in: ['manager', 'admin'] } }
-          : filter === 'buyer'
-            ? { role: 'buyer' }
-            : {};
+      filter === 'archived'
+        ? { archivedAt: { not: null } }
+        : filter === 'blocked'
+          ? { ...notArchived, blockedUntil: { gt: now } }
+          : filter === 'manager'
+            ? { ...notArchived, role: { in: ['manager', 'admin'] } }
+            : filter === 'buyer'
+              ? { ...notArchived, role: 'buyer' }
+              : notArchived;
     const [users, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
@@ -179,6 +183,7 @@ export class AdminUsersController {
       blockedUntil: u.blockedUntil && u.blockedUntil > now ? u.blockedUntil.toISOString() : null,
       blockPermanent: Boolean(u.blockedUntil && u.blockedUntil >= PERMANENT_BLOCK),
       blockReason: u.blockReason,
+      archived: Boolean(u.archivedAt),
       bids: u._count.bids,
       wins: u._count.wonDeals,
       joined: u.createdAt.toISOString(),
@@ -209,8 +214,22 @@ export class AdminUsersController {
     return { ok: true };
   }
 
+  /** Архивация (мягкое скрытие). Для персонала это ещё и запрет входа (см. auth). */
+  @Post(':id/archive')
+  async archive(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthUser) {
+    if (actor!.id === id) throw new BadRequestException('Нельзя архивировать свой аккаунт');
+    await this.prisma.user.update({ where: { id }, data: { archivedAt: new Date() } });
+    return { ok: true };
+  }
+
+  @Post(':id/unarchive')
+  async unarchive(@Param('id', ParseUUIDPipe) id: string) {
+    await this.prisma.user.update({ where: { id }, data: { archivedAt: null } });
+    return { ok: true };
+  }
+
   /** Удаление пользователя — только admin. Запрещено, если есть история торгов
-   * (ставки/сделки) или попытка удалить себя — тогда используйте блокировку. */
+   * (ставки/сделки) или попытка удалить себя — тогда используйте блокировку/архив. */
   @Delete(':id')
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthUser) {
     if (actor!.role !== 'admin') throw new ForbiddenException('Удаление доступно только администратору');
