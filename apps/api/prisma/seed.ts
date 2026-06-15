@@ -234,7 +234,7 @@ async function main() {
       await prisma.lot.update({ where: { id: lot.id }, data: { currentBidId: lastBidId } });
     }
 
-    // Сделка для проданного лота
+    // Сделка для проданного лота — выдана недавно (чтобы дашборд сразу показал комиссию)
     if (l.status === 'sold') {
       const topBid = await prisma.bid.findFirst({ where: { lotId: lot.id }, orderBy: { amount: 'desc' } });
       if (topBid) {
@@ -243,11 +243,48 @@ async function main() {
             lotId: lot.id, winnerUserId: topBid.userId, winningBidId: topBid.id,
             amount: topBid.amount, feeRate: 0.015,
             feeAmount: BigInt(Math.round(Number(topBid.amount) * 0.015)),
-            status: 'won', managerId: manager.id,
+            status: 'delivered', managerId: manager.id, closedAt: new Date(now - 2 * 86_400_000),
           },
         });
       }
     }
+  }
+
+  // ── Демо-сделки в разных статусах (для дашборда: воронка + комиссия + date-range) ──
+  // Берём лоты с историей ставок, у которых ещё нет сделки, и раскидываем по этапам.
+  const dealtLotIds = new Set((await prisma.deal.findMany({ select: { lotId: true } })).map((d) => d.lotId));
+  const candidates = (
+    await prisma.lot.findMany({
+      where: { bidCount: { gt: 0 } },
+      include: { _count: { select: { bids: true } } },
+      orderBy: { endsAt: 'desc' },
+    })
+  ).filter((lot) => !dealtLotIds.has(lot.id) && lot._count.bids > 0);
+
+  // status, сколько дней назад «выдана» (для delivered), иначе closedAt = null
+  const demo: Array<{ status: 'won' | 'contacted' | 'signed' | 'delivered' | 'cancelled'; deliveredDaysAgo?: number }> = [
+    { status: 'delivered', deliveredDaysAgo: 1 },
+    { status: 'delivered', deliveredDaysAgo: 5 },
+    { status: 'delivered', deliveredDaysAgo: 20 },
+    { status: 'signed' },
+    { status: 'contacted' },
+    { status: 'won' },
+    { status: 'cancelled' },
+  ];
+  for (let i = 0; i < Math.min(demo.length, candidates.length); i++) {
+    const lot = candidates[i];
+    const d = demo[i];
+    const topBid = await prisma.bid.findFirst({ where: { lotId: lot.id }, orderBy: { amount: 'desc' } });
+    if (!topBid) continue;
+    await prisma.deal.create({
+      data: {
+        lotId: lot.id, winnerUserId: topBid.userId, winningBidId: topBid.id,
+        amount: topBid.amount, feeRate: 0.015,
+        feeAmount: BigInt(Math.round(Number(topBid.amount) * 0.015)),
+        status: d.status, managerId: manager.id,
+        closedAt: d.deliveredDaysAgo != null ? new Date(now - d.deliveredDaysAgo * 86_400_000) : null,
+      },
+    });
   }
 
   // Избранное (lot 2 и 4 как в прототипе)
