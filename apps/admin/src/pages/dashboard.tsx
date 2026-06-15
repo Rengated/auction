@@ -1,8 +1,22 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fmt, fmtTime } from '@hermes/shared';
 import { useAdminLots, useDashboard } from '../lib/queries';
 import { leftSec, useNow } from '../lib/time';
 import { AI, Ic, Sb } from '../components/icons';
+
+const RANGE_PRESETS: Array<[string, number]> = [
+  ['Неделя', 7],
+  ['Месяц', 30],
+  ['Квартал', 90],
+];
+/** ISO начала суток N дней назад. */
+const daysAgoISO = (n: number) => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (n - 1));
+  return d.toISOString();
+};
 
 const DOT_COLORS: Record<string, string> = {
   bid: 'var(--live)',
@@ -24,7 +38,9 @@ function ago(at: string, now: number): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const now = useNow();
-  const { data } = useDashboard();
+  const [rangeDays, setRangeDays] = useState(7);
+  const from = daysAgoISO(rangeDays);
+  const { data } = useDashboard(from);
   const { data: livePage } = useAdminLots('live');
   const { data: soonPage } = useAdminLots('soon');
 
@@ -32,19 +48,20 @@ export function DashboardPage() {
   const upcoming = soonPage?.items ?? [];
   const schedule = upcoming.concat(live.slice(0, 2));
 
-  const week = data?.week ?? [0, 0, 0, 0, 0, 0, 0];
+  const week = data?.week ?? [];
   const wmax = Math.max(1, ...week);
-  // Подписи дней: от «сегодня − 6 дней» до «сегодня»
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const label = new Date(now - (6 - i) * 86_400_000).toLocaleDateString('ru-RU', { weekday: 'short' });
+  // Подписи дней бакетов: от начала диапазона (data.from) по числу бакетов.
+  const rangeStart = data?.from ? new Date(data.from).getTime() : now - (rangeDays - 1) * 86_400_000;
+  const days = Array.from({ length: week.length || rangeDays }, (_, i) => {
+    const label = new Date(rangeStart + i * 86_400_000).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric' });
     return label.charAt(0).toUpperCase() + label.slice(1);
   });
   const activity = data?.activity ?? [];
 
   // Тренды для мини-графиков (нормировка по максимуму)
-  const turnoverWeek = data?.turnoverWeek ?? [0, 0, 0, 0, 0, 0, 0];
+  const turnoverWeek = data?.turnoverWeek ?? [];
   const tmax = Math.max(1, ...turnoverWeek);
-  const regWeek = data?.registrationsWeek ?? [0, 0, 0, 0, 0, 0, 0];
+  const regWeek = data?.registrationsWeek ?? [];
   const rmax = Math.max(1, ...regWeek);
 
   // Средняя эффективная ставка комиссии из факта (если есть и оборот, и комиссия)
@@ -54,6 +71,12 @@ export function DashboardPage() {
 
   return (
     <div className="content fade">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+        <span style={{ font: '600 12px/1 var(--ui)', color: 'var(--dim)', marginRight: 4 }}>Период:</span>
+        {RANGE_PRESETS.map(([label, d]) => (
+          <button key={d} className={`btn sm ${rangeDays === d ? 'acc' : ''}`} onClick={() => setRangeDays(d)}>{label}</button>
+        ))}
+      </div>
       <div className="stats">
         <div className="stat">
           <div className="l">В эфире сейчас</div>
@@ -66,14 +89,14 @@ export function DashboardPage() {
           <div className="d">ожидают запуска</div>
         </div>
         <div className="stat">
-          <div className="l">Ставок за день</div>
+          <div className="l">Ставок за период</div>
           <div className="v">{data?.bidsToday ?? 0}</div>
-          <div className="d up">↑ активность высокая</div>
+          <div className="d up">за выбранный диапазон</div>
         </div>
         <div className="stat">
-          <div className="l">Комиссия (продано)</div>
+          <div className="l">Комиссия (выдано)</div>
           <div className="v">{fmt(data?.commissionTotal ?? 0)} ₽</div>
-          <div className="d">{effRate !== null ? `${effRate.toFixed(1)}% эфф. · ` : ''}{data?.dealsCount ?? 0} сделок</div>
+          <div className="d">{effRate !== null ? `${effRate.toFixed(1)}% эфф. · ` : ''}{data?.dealsCount ?? 0} выдано</div>
         </div>
       </div>
 
@@ -89,17 +112,17 @@ export function DashboardPage() {
             <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
               <div className="l">Оборот</div>
               <div className="v">{fmt(turnover)} ₽</div>
-              <div className="d">по сделкам</div>
+              <div className="d">по выданным</div>
             </div>
             <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
-              <div className="l">Комиссия за месяц</div>
+              <div className="l">Комиссия за период</div>
               <div className="v">{fmt(data?.commissionMonth ?? 0)} ₽</div>
-              <div className="d">за 30 дней</div>
+              <div className="d">по выданным</div>
             </div>
             <div className="stat" style={{ border: 0, padding: 0, background: 'transparent', boxShadow: 'none' }}>
               <div className="l">Средний чек</div>
               <div className="v">{fmt(data?.avgDeal ?? 0)} ₽</div>
-              <div className="d">на сделку</div>
+              <div className="d">на выданную</div>
             </div>
           </div>
           <div style={{ padding: '18px 20px 22px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 130 }}>
@@ -120,7 +143,7 @@ export function DashboardPage() {
               { l: 'Конверсия в продажу', v: `${Math.round(data?.conversionRate ?? 0)}%`, c: 'var(--ok)' },
               { l: 'Взят резерв', v: `${Math.round(data?.reserveRate ?? 0)}%`, c: 'var(--accent)' },
               { l: 'Отклонено ставок', v: `${Math.round(data?.rejectionRate ?? 0)}%`, c: 'var(--gold)' },
-              { l: 'Новых сегодня', v: fmt(data?.newRegistrations ?? 0), c: 'var(--ink)' },
+              { l: 'Новых за период', v: fmt(data?.newRegistrations ?? 0), c: 'var(--ink)' },
             ].map((r, i, arr) => (
               <div key={r.l} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < arr.length - 1 ? '1px solid var(--line)' : 0 }}>
                 <span style={{ font: '600 13px/1.2 var(--ui)', color: 'var(--dim)' }}>{r.l}</span>
@@ -145,8 +168,7 @@ export function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'stretch' }}>
         <div className="pcard">
           <div className="ph">
-            <div><h3>Активность за неделю</h3><div className="sub">ставок в день</div></div>
-            <span className="num" style={{ fontSize: 12, color: 'var(--ok)', fontWeight: 600 }}>↑ 23% к прошлой</span>
+            <div><h3>Активность за период</h3><div className="sub">ставок в день</div></div>
           </div>
           <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', gap: 14, height: 180 }}>
             {week.map((n, i) => (

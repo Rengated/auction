@@ -348,63 +348,68 @@ export class AdminDashboardController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
-  async get() {
+  async get(@Query('from') fromRaw?: string, @Query('to') toRaw?: string) {
     const now = new Date();
-    const dayStart = new Date(now);
-    dayStart.setHours(0, 0, 0, 0);
+    // Диапазон: дефолт — последние 7 дней. Валидируем, иначе откатываем к дефолту.
+    const parse = (s: string | undefined): Date | null => {
+      if (!s) return null;
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const to = parse(toRaw) ?? now;
+    const from = parse(fromRaw) ?? new Date(to.getTime() - 6 * 86_400_000);
+    const range = { gte: from, lte: to };
+    // Число дневных бакетов для трендов (1..31, по фактическому окну).
+    const dayMs = 86_400_000;
+    const fromDay = new Date(from);
+    fromDay.setHours(0, 0, 0, 0);
+    const buckets = Math.min(31, Math.max(1, Math.floor((to.getTime() - fromDay.getTime()) / dayMs) + 1));
+    const bucketIdx = (d: Date) => Math.floor((d.getTime() - fromDay.getTime()) / dayMs);
 
-    const [liveCount, upcomingCount, bidsToday, deals] = await Promise.all([
+    // Текущее состояние — НЕ зависит от диапазона (это «сейчас»).
+    const [liveCount, upcomingCount] = await Promise.all([
       this.prisma.lot.count({ where: { status: 'live' } }),
       this.prisma.lot.count({ where: { status: 'upcoming', published: true } }),
-      this.prisma.bid.count({ where: { createdAt: { gte: dayStart } } }),
-      this.prisma.deal.findMany({ select: { feeAmount: true } }),
     ]);
 
-    // Ставки по дням за неделю
-    const weekAgo = new Date(now.getTime() - 6 * 86_400_000);
-    weekAgo.setHours(0, 0, 0, 0);
-    const monthAgo = new Date(now.getTime() - 30 * 86_400_000);
-    const bucketIdx = (d: Date) => Math.floor((d.getTime() - weekAgo.getTime()) / 86_400_000);
-
-    const weekBids = await this.prisma.bid.findMany({
-      where: { createdAt: { gte: weekAgo } },
+    // Ставки по дням за период
+    const periodBids = await this.prisma.bid.findMany({
+      where: { createdAt: range },
       select: { createdAt: true },
     });
-    const week: number[] = Array(7).fill(0);
-    for (const b of weekBids) {
+    const week: number[] = Array(buckets).fill(0);
+    for (const b of periodBids) {
       const idx = bucketIdx(b.createdAt);
-      if (idx >= 0 && idx < 7) week[idx]++;
+      if (idx >= 0 && idx < buckets) week[idx]++;
     }
 
-    // ── Финансы ──────────────────────────────────────────────────────────
-    const paidWhere = { status: { not: 'cancelled' as const } };
-    const [turnoverAgg, dealsWeek, commissionMonthAgg, newUsersToday, usersWeek, lotStatusGroups, bidStats] =
+    // ── Финансы (только выданные машины: status=delivered по дате выдачи closedAt) ──
+    const deliveredWhere = { status: 'delivered' as const, closedAt: range };
+    const [moneyAgg, deliveredList, newUsersPeriod, usersPeriod, lotStatusGroups, bidStats] =
       await Promise.all([
-        this.prisma.deal.aggregate({ where: paidWhere, _sum: { amount: true }, _avg: { amount: true }, _count: true }),
-        this.prisma.deal.findMany({ where: { ...paidWhere, createdAt: { gte: weekAgo } }, select: { amount: true, createdAt: true } }),
-        this.prisma.deal.aggregate({ where: { ...paidWhere, createdAt: { gte: monthAgo } }, _sum: { feeAmount: true } }),
-        this.prisma.user.count({ where: { role: 'buyer', createdAt: { gte: dayStart } } }),
-        this.prisma.user.findMany({ where: { role: 'buyer', createdAt: { gte: weekAgo } }, select: { createdAt: true } }),
-        this.prisma.lot.groupBy({ by: ['status'], _count: true }),
-        this.prisma.bid.aggregate({
-          where: { createdAt: { gte: weekAgo } },
-          _count: { _all: true },
-        }),
+        this.prisma.deal.aggregate({ where: deliveredWhere, _sum: { amount: true, feeAmount: true }, _avg: { amount: true }, _count: true }),
+        this.prisma.deal.findMany({ where: deliveredWhere, select: { amount: true, closedAt: true } }),
+        this.prisma.user.count({ where: { role: 'buyer', createdAt: range } }),
+        this.prisma.user.findMany({ where: { role: 'buyer', createdAt: range }, select: { createdAt: true } }),
+        // Конверсия/резерв — по лотам, закрытым в периоде (по endsAt).
+        this.prisma.lot.groupBy({ by: ['status'], _count: true, where: { status: { in: ['sold', 'finished', 'withdrawn'] }, endsAt: range } }),
+        this.prisma.bid.aggregate({ where: { createdAt: range }, _count: { _all: true } }),
       ]);
 
-    // Тренды по дням (оборот и регистрации)
-    const turnoverWeek: number[] = Array(7).fill(0);
-    for (const d of dealsWeek) {
-      const idx = bucketIdx(d.createdAt);
-      if (idx >= 0 && idx < 7) turnoverWeek[idx] += Number(d.amount);
+    // Тренды по дням (оборот выданных и регистрации)
+    const turnoverWeek: number[] = Array(buckets).fill(0);
+    for (const d of deliveredList) {
+      if (!d.closedAt) continue;
+      const idx = bucketIdx(d.closedAt);
+      if (idx >= 0 && idx < buckets) turnoverWeek[idx] += Number(d.amount);
     }
-    const registrationsWeek: number[] = Array(7).fill(0);
-    for (const u of usersWeek) {
+    const registrationsWeek: number[] = Array(buckets).fill(0);
+    for (const u of usersPeriod) {
       const idx = bucketIdx(u.createdAt);
-      if (idx >= 0 && idx < 7) registrationsWeek[idx]++;
+      if (idx >= 0 && idx < buckets) registrationsWeek[idx]++;
     }
 
-    // ── Качество ─────────────────────────────────────────────────────────
+    // ── Качество (в пределах периода) ────────────────────────────────────
     const cnt = (s: string) => lotStatusGroups.find((g) => g.status === s)?._count ?? 0;
     const sold = cnt('sold');
     const finished = cnt('finished');
@@ -413,9 +418,9 @@ export class AdminDashboardController {
     const conversionRate = closedTotal > 0 ? Math.round((sold / closedTotal) * 100) : 0;
     const reserveRate = sold + finished > 0 ? Math.round((sold / (sold + finished)) * 100) : 0;
 
-    const rejectedWeek = await this.prisma.bid.count({ where: { createdAt: { gte: weekAgo }, rejectedAt: { not: null } } });
-    const bidsWeekTotal = bidStats._count._all;
-    const rejectionRate = bidsWeekTotal > 0 ? Math.round((rejectedWeek / bidsWeekTotal) * 100) : 0;
+    const rejectedPeriod = await this.prisma.bid.count({ where: { createdAt: range, rejectedAt: { not: null } } });
+    const bidsPeriodTotal = bidStats._count._all;
+    const rejectionRate = bidsPeriodTotal > 0 ? Math.round((rejectedPeriod / bidsPeriodTotal) * 100) : 0;
 
     // Последние события: ставки + системные события движка
     const [recentBids, recentEvents] = await Promise.all([
@@ -457,23 +462,29 @@ export class AdminDashboardController {
       .slice(0, 8);
 
     return {
+      // Эхо диапазона (для отображения и кэш-ключа)
+      from: from.toISOString(),
+      to: to.toISOString(),
+      // Текущее состояние (не зависит от диапазона)
       liveCount,
       upcomingCount,
-      bidsToday,
-      commissionTotal: deals.reduce((s, d) => s + Number(d.feeAmount), 0),
-      dealsCount: deals.length,
+      // За период
+      bidsToday: bidsPeriodTotal,
+      // Деньги — только выданные машины (delivered) в пределах диапазона по дате выдачи
+      commissionTotal: Number(moneyAgg._sum.feeAmount ?? 0),
+      dealsCount: moneyAgg._count,
       week,
       activity,
       // Финансы
-      totalTurnover: Number(turnoverAgg._sum.amount ?? 0),
-      avgDeal: Math.round(Number(turnoverAgg._avg.amount ?? 0)),
-      commissionMonth: Number(commissionMonthAgg._sum.feeAmount ?? 0),
+      totalTurnover: Number(moneyAgg._sum.amount ?? 0),
+      avgDeal: Math.round(Number(moneyAgg._avg.amount ?? 0)),
+      commissionMonth: Number(moneyAgg._sum.feeAmount ?? 0),
       turnoverWeek,
       // Качество
       conversionRate,
       reserveRate,
       rejectionRate,
-      newRegistrations: newUsersToday,
+      newRegistrations: newUsersPeriod,
       registrationsWeek,
       serverNow: now.toISOString(),
     };

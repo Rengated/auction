@@ -101,6 +101,8 @@ export interface AdminSettings {
 }
 
 export interface DashboardData {
+  from: string;
+  to: string;
   liveCount: number;
   upcomingCount: number;
   bidsToday: number;
@@ -155,8 +157,18 @@ export const useMe = () =>
     staleTime: 60_000,
   });
 
-export const useDashboard = () =>
-  useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: () => get('/admin/dashboard'), refetchInterval: 30_000 });
+export const useDashboard = (from?: string, to?: string) =>
+  useQuery<DashboardData>({
+    queryKey: ['dashboard', from ?? '', to ?? ''],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      const q = qs.toString();
+      return get(`/admin/dashboard${q ? `?${q}` : ''}`);
+    },
+    refetchInterval: 30_000,
+  });
 
 export type AdminLotsFilter = 'all' | 'live' | 'soon' | 'done' | 'draft';
 
