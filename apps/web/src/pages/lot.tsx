@@ -400,6 +400,7 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
   const navigate = useNavigate();
   const now = useNow();
   const [tab, setTab] = useState('Обзор');
+  const [photoIdx, setPhotoIdx] = useState(0);
   const tabs = ['Обзор', 'Характеристики', 'Описание'];
   const live = STATUS_META[displayStatus(lot.status, lot.endsAt, now)].group === 'live';
 
@@ -419,23 +420,32 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
 
       <div className="lot-grid">
         <div>
-          <div className="gallery-main"><Carousel photos={lot.photos} h={420} glyph={lot.make.toUpperCase()} size="lg" /></div>
+          <div className="gallery-main">
+            <Carousel photos={lot.photos} h={420} glyph={lot.make.toUpperCase()} size="lg" index={Math.min(photoIdx, Math.max(0, lot.photos.length - 1))} onIndex={setPhotoIdx} />
+          </div>
           {lot.mediaPurged && lot.photos.length === 0 && (
             <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', margin: '8px 2px 0' }}>
               Медиа этого лота удалено по истечении срока хранения.
             </div>
           )}
-          <div className="thumbs">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className={`thumb ${i === 0 ? 'on' : ''}`}>
-                {lot.photos[i]?.kind === 'video' ? (
-                  <div style={{ height: 70, background: 'linear-gradient(135deg, #2a2f37 0%, #171a1f 100%)', display: 'grid', placeItems: 'center', color: '#f5f4f0', fontSize: 16, opacity: 0.9 }}>▶</div>
-                ) : (
-                  <Photo src={lot.photos[i]?.card ?? null} h={70} glyph={String(i + 1)} />
-                )}
-              </div>
-            ))}
-          </div>
+          {lot.photos.length > 1 && (
+            <div className="thumbs">
+              {lot.photos.map((p, i) => (
+                <div
+                  key={p.id}
+                  className={`thumb ${i === photoIdx ? 'on' : ''}`}
+                  onClick={() => setPhotoIdx(i)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {p.kind === 'video' ? (
+                    <div style={{ height: 70, background: 'linear-gradient(135deg, #2a2f37 0%, #171a1f 100%)', display: 'grid', placeItems: 'center', color: '#f5f4f0', fontSize: 16, opacity: 0.9 }}>▶</div>
+                  ) : (
+                    <Photo src={p.card ?? null} h={70} glyph={String(i + 1)} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ marginTop: 26 }}>
             <div className="wseg">{tabs.map((t) => <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t}</button>)}</div>

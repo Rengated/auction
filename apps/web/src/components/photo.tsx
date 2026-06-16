@@ -52,6 +52,8 @@ export function Carousel({
   radius = 0,
   style = {},
   size = 'md',
+  index,
+  onIndex,
 }: {
   photos: LotPhotoDto[];
   h?: number;
@@ -59,10 +61,20 @@ export function Carousel({
   radius?: number;
   style?: CSSProperties;
   size?: 'md' | 'lg';
+  /** Контролируемый активный индекс (для синхронизации с плитками-миниатюрами). */
+  index?: number;
+  onIndex?: (i: number) => void;
 }) {
   const total = Math.max(1, photos.length);
   const slides = total;
-  const [i, setI] = useState(0);
+  // Управляемый режим (index задан) или внутреннее состояние.
+  const [inner, setInner] = useState(0);
+  const i = index ?? inner;
+  const setI = (updater: number | ((p: number) => number)) => {
+    const nextVal = typeof updater === 'function' ? (updater as (p: number) => number)(i) : updater;
+    if (index === undefined) setInner(nextVal);
+    onIndex?.(nextVal);
+  };
   const go = (d: number, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setI((p) => (p + d + slides) % slides);

@@ -51,6 +51,19 @@ export function AuctionControlPage() {
         <span style={{ marginLeft: 12 }}><Sb s={lot.status} /></span>
       </div>
 
+      {lot.status === 'finished' && !lot.reserveMet && lot.bidCount > 0 && (
+        <div
+          className="pcard"
+          style={{ marginBottom: 20, padding: '14px 18px', borderLeft: '3px solid var(--gold)', display: 'flex', alignItems: 'center', gap: 12 }}
+        >
+          <span style={{ width: 22, height: 22, color: 'var(--gold)', flex: 'none' }}>{AI.users}</span>
+          <div style={{ font: '600 13.5px/1.45 var(--ui)' }}>
+            Резерв не достигнут — лот не продан автоматически. Лучшая ставка {fmt(lot.currentPrice)} ₽.
+            Свяжитесь с участниками ниже, чтобы договориться о продаже.
+          </div>
+        </div>
+      )}
+
       <div className="lc-grid">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="pcard">
@@ -198,13 +211,21 @@ export function AuctionControlPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="num" style={{ color: 'var(--dim)' }}>{p.phone ?? '—'}</td>
+                      <td className="num" style={{ color: 'var(--dim)' }}>
+                        {p.phone ?? '—'}
+                        {p.email && <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 3 }}>{p.email}</div>}
+                      </td>
                       <td className="num" style={{ fontWeight: 600 }}>{fmt(p.maxBid)} ₽</td>
                       <td>
                         <div className="row-actions">
                           {p.phone && (
                             <a className="iconbtn2" title="Позвонить" href={`tel:${p.phone.replace(/\s/g, '')}`} style={{ textDecoration: 'none' }}>
                               {AI.phone}
+                            </a>
+                          )}
+                          {p.email && (
+                            <a className="iconbtn2" title="Написать на почту" href={`mailto:${p.email}`} style={{ textDecoration: 'none' }}>
+                              {AI.mail}
                             </a>
                           )}
                         </div>
