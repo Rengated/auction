@@ -32,7 +32,7 @@ import {
   Min,
 } from 'class-validator';
 import { PAGE_LIMITS, WS_EVENTS } from '@hermes/shared';
-import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
+import { CurrentUser, Roles, STAFF, type AuthUser } from '../../common/decorators';
 import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LifecycleService } from '../auction-engine/lifecycle.service';
@@ -71,12 +71,14 @@ class LotFormDto {
   @IsOptional() @IsNumber() @Min(0) @Max(1) feeRate?: number | null;
   /** Адрес из справочника; null — снять адрес */
   @IsOptional() @IsUUID() addressId?: string | null;
+  /** Альтернатива загрузке PDF: внешняя ссылка на отчёт Автотеки; null/'' — снять */
+  @IsOptional() @IsString() autotekaUrl?: string | null;
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
   @IsOptional() @IsBoolean() published?: boolean;
 }
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/lots')
 export class AdminLotsController {
   constructor(
@@ -236,7 +238,9 @@ export class AdminLotsController {
   /** Удаление лота — только admin, и только без ставок/сделки и не в эфире. */
   @Delete(':id')
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthUser) {
-    if (actor!.role !== 'admin') throw new ForbiddenException('Удаление доступно только администратору');
+    if (actor!.role !== 'admin' && actor!.role !== 'director') {
+      throw new ForbiddenException('Удаление доступно только администратору');
+    }
     const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
     if (!lot) throw new NotFoundException();
     if (lot.status === 'live') throw new ConflictException('Лот в эфире — сначала завершите торги');
@@ -335,6 +339,10 @@ export class AdminLotsController {
       lotBidStep: lot.bidStep != null ? Number(lot.bidStep) : null,
       lotFeeRate: lot.feeRate != null ? Number(lot.feeRate) : null,
       addressId: lot.addressId,
+      /** Сырое значение внешней ссылки на Автотеку (для редактирования в форме) */
+      autotekaUrl: lot.autotekaUrl ?? null,
+      /** Загружен ли PDF-файл (в отличие от внешней ссылки) */
+      autotekaPdfAttached: Boolean(lot.autotekaPdfKey),
       archived: Boolean(lot.archivedAt),
     };
   }
@@ -381,6 +389,7 @@ export class AdminLotsController {
       options: dto.options ?? [],
       addressId: addr.addressId,
       addressText: addr.addressText,
+      autotekaUrl: dto.autotekaUrl?.trim() || null,
       startPrice: BigInt(dto.startPrice),
       reservePrice: BigInt(dto.reservePrice),
       bidStep: dto.bidStep != null ? BigInt(dto.bidStep) : null,

@@ -13,10 +13,10 @@ import {
   AdminStaffController,
   AdminUsersController,
 } from './admin-misc.controllers';
-import { MediaService } from './media.service';
+import { MediaModule } from './media.module';
 
 @Module({
-  imports: [AuctionEngineModule, AuthModule, SettingsModule, NotificationsModule],
+  imports: [AuctionEngineModule, AuthModule, SettingsModule, NotificationsModule, MediaModule],
   controllers: [
     AdminLotsController,
     AdminAddressesController,
@@ -27,6 +27,5 @@ import { MediaService } from './media.service';
     AdminSettingsController,
     AdminDashboardController,
   ],
-  providers: [MediaService],
 })
 export class AdminModule {}

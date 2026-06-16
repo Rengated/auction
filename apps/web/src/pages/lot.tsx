@@ -420,6 +420,11 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
       <div className="lot-grid">
         <div>
           <div className="gallery-main"><Carousel photos={lot.photos} h={420} glyph={lot.make.toUpperCase()} size="lg" /></div>
+          {lot.mediaPurged && lot.photos.length === 0 && (
+            <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', margin: '8px 2px 0' }}>
+              Медиа этого лота удалено по истечении срока хранения.
+            </div>
+          )}
           <div className="thumbs">
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className={`thumb ${i === 0 ? 'on' : ''}`}>

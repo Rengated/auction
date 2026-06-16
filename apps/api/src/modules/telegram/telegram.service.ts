@@ -214,15 +214,6 @@ export class TelegramService {
     L.push('');
     L.push(`<blockquote>${spec.join('\n')}</blockquote>`);
 
-    // ── Опции (компактно, с обрезкой) ──
-    const options = Array.isArray(lot.options) ? (lot.options as unknown[]).filter((o): o is string => typeof o === 'string') : [];
-    if (options.length) {
-      const joined = options.map((o) => esc(o)).join(' · ');
-      const opts = joined.length > 220 ? `${joined.slice(0, 217)}…` : joined;
-      L.push('');
-      L.push(`<b>Комплектация:</b> ${opts}`);
-    }
-
     // ── Описание в сворачиваемой цитате (только для новых/идущих лотов) ──
     const desc = lot.description.trim();
     if (desc && (event === 'published' || event === 'opened')) {

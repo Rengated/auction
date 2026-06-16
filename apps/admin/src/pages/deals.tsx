@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fmt, PAGE_LIMITS } from '@hermes/shared';
 import { useDeals, type AdminDeal } from '../lib/queries';
 import { Pagination } from '../components/pagination';
+import { DateRange, defaultRange, type DateRangeValue } from '../components/date-range';
 
 export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
   won: ['Выигран', 'up'],
@@ -15,7 +16,9 @@ export const DEAL_STATUS: Record<AdminDeal['status'], [string, string]> = {
 export function DealsPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const { data } = useDeals(page);
+  // Фильтр по периоду включается по кнопке — по умолчанию показываем все сделки.
+  const [range, setRange] = useState<DateRangeValue | null>(null);
+  const { data } = useDeals(page, range ?? undefined);
   const deals = data?.items ?? [];
   // Процент комиссии у каждой сделки свой (снимок на момент продажи) — показываем
   // его в каждой строке, а не в заголовке.
@@ -23,7 +26,19 @@ export function DealsPage() {
   return (
     <div className="content fade">
       <div className="pcard">
-        <div className="ph"><div><h3>Сделки после победы</h3><div className="sub">сопровождение выигранных лотов · контакты победителя</div></div></div>
+        <div className="ph" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div><h3>Сделки после победы</h3><div className="sub">сопровождение выигранных лотов · контакты победителя</div></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {range ? (
+              <>
+                <DateRange value={range} onChange={(v) => { setRange(v); setPage(1); }} />
+                <button className="btn sm" onClick={() => { setRange(null); setPage(1); }}>Все</button>
+              </>
+            ) : (
+              <button className="btn sm" onClick={() => { setRange(defaultRange()); setPage(1); }}>Фильтр по дате</button>
+            )}
+          </div>
+        </div>
         <table className="tb">
           <thead><tr><th>Автомобиль</th><th>Победитель</th><th>Цена</th><th>Комиссия</th><th>К оплате</th><th>Статус</th><th></th></tr></thead>
           <tbody>

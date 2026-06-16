@@ -17,13 +17,14 @@ import {
 import { Prisma, type DealStatus, type Role } from '@prisma/client';
 import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsInt, Min, MinLength } from 'class-validator';
 import { PAGE_LIMITS } from '@hermes/shared';
-import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
+import { ADMIN_UP, CurrentUser, Roles, STAFF, type AuthUser } from '../../common/decorators';
 import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
 import { photoToDto } from '../lots/lot.mapper';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SettingsService } from '../settings/settings.service';
+import { LifecycleService } from '../auction-engine/lifecycle.service';
 
 function dealToDto(d: {
   id: string;
@@ -68,26 +69,38 @@ class DealPatchDto {
   @IsOptional() @IsString() note?: string;
 }
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/deals')
 export class AdminDealsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly lifecycle: LifecycleService,
   ) {}
 
   @Get()
-  async list(@Query() page: PageQueryDto) {
+  async list(@Query() page: PageQueryDto, @Query('from') fromRaw?: string, @Query('to') toRaw?: string) {
     const limit = page.limit ?? PAGE_LIMITS.admin;
     const offset = page.offset ?? 0;
+    const parse = (s?: string): Date | null => {
+      if (!s) return null;
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const from = parse(fromRaw);
+    const to = parse(toRaw);
+    // Фильтр по дате создания сделки (победы), если задан диапазон.
+    const where: Prisma.DealWhereInput =
+      from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {};
     const [deals, total] = await this.prisma.$transaction([
       this.prisma.deal.findMany({
+        where,
         include: DEAL_INCLUDE,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      this.prisma.deal.count(),
+      this.prisma.deal.count({ where }),
     ]);
     return { items: deals.map(dealToDto), total, limit, offset };
   }
@@ -121,6 +134,12 @@ export class AdminDealsController {
         dealId: deal.id,
         status: deal.status,
       });
+      // Очистка медиа через неделю после выдачи; откат из delivered — отмена.
+      if (deal.status === 'delivered') {
+        await this.lifecycle.scheduleMediaPurge(deal.lot.id, deal.closedAt ?? new Date());
+      } else if (before.status === 'delivered') {
+        await this.lifecycle.cancelMediaPurge(deal.lot.id);
+      }
     }
     return dealToDto(deal);
   }
@@ -139,7 +158,7 @@ class UserPatchDto {
 
 const PERMANENT_BLOCK = new Date('9999-01-01');
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/users')
 export class AdminUsersController {
   constructor(private readonly prisma: PrismaService) {}
@@ -157,7 +176,7 @@ export class AdminUsersController {
         : filter === 'blocked'
           ? { ...notArchived, blockedUntil: { gt: now } }
           : filter === 'manager'
-            ? { ...notArchived, role: { in: ['manager', 'admin'] } }
+            ? { ...notArchived, role: { in: ['manager', 'admin', 'director'] } }
             : filter === 'buyer'
               ? { ...notArchived, role: 'buyer' }
               : notArchived;
@@ -254,8 +273,11 @@ class CreateStaffDto {
   @IsString() @IsNotEmpty() username!: string;
   @IsString() @MinLength(6) password!: string;
   @IsString() @IsNotEmpty() displayName!: string;
-  @IsIn(['manager', 'admin']) role!: Role;
+  @IsIn(['manager', 'admin', 'director']) role!: Role;
 }
+
+/** Роли, назначать которые может только директор. */
+const DIRECTOR_ONLY_ROLES: Role[] = ['admin', 'director'];
 
 class SetPasswordDto {
   @IsString() @MinLength(6) password!: string;
@@ -263,11 +285,11 @@ class SetPasswordDto {
 
 class StaffPatchDto {
   @IsOptional() @IsString() @IsNotEmpty() displayName?: string;
-  @IsOptional() @IsIn(['manager', 'admin']) role?: Role;
+  @IsOptional() @IsIn(['manager', 'admin', 'director']) role?: Role;
 }
 
-/** Управление персоналом (admin/manager-аккаунты) — только для role=admin. */
-@Roles('admin')
+/** Управление персоналом (manager/admin/director-аккаунты) — админ и выше. */
+@Roles(...ADMIN_UP)
 @Controller('admin/staff')
 export class AdminStaffController {
   constructor(
@@ -276,7 +298,11 @@ export class AdminStaffController {
   ) {}
 
   @Post()
-  async create(@Body() dto: CreateStaffDto) {
+  async create(@Body() dto: CreateStaffDto, @CurrentUser() actor: AuthUser) {
+    // Назначать роли admin/director может только директор.
+    if (DIRECTOR_ONLY_ROLES.includes(dto.role) && actor!.role !== 'director') {
+      throw new ForbiddenException('Назначить эту роль может только директор');
+    }
     const exists = await this.prisma.user.findUnique({ where: { username: dto.username } });
     if (exists) throw new BadRequestException('Логин уже занят');
     const user = await this.prisma.user.create({
@@ -311,6 +337,14 @@ export class AdminStaffController {
     if (actor!.id === id && dto.role && dto.role !== u.role) {
       throw new BadRequestException('Нельзя изменить свою роль');
     }
+    // Назначать/снимать роли admin/director может только директор
+    // (как новую роль, так и изменение роли admin/director-сотрудника).
+    if (
+      actor!.role !== 'director' &&
+      ((dto.role && DIRECTOR_ONLY_ROLES.includes(dto.role)) || DIRECTOR_ONLY_ROLES.includes(u.role))
+    ) {
+      throw new ForbiddenException('Управлять админами и директорами может только директор');
+    }
     await this.prisma.user.update({
       where: { id },
       data: { displayName: dto.displayName, role: dto.role },
@@ -325,6 +359,7 @@ class SettingsPutDto {
   @IsOptional() @IsBoolean() antisnipeEnabled?: boolean;
   @IsOptional() @IsInt() @Min(5) antisnipeWindowSec?: number;
   @IsOptional() @IsInt() @Min(5) antisnipeExtensionSec?: number;
+  @IsOptional() @IsInt() @Min(0) extendThrottleSec?: number;
   @IsOptional() @IsObject() managerContacts?: Record<string, unknown>;
   @IsOptional() @IsObject() notificationToggles?: Record<string, unknown>;
   @IsOptional() @IsString() telegramBotToken?: string;
@@ -333,7 +368,7 @@ class SettingsPutDto {
   @IsOptional() @IsObject() tgEventToggles?: Record<string, unknown>;
 }
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/settings')
 export class AdminSettingsController {
   constructor(
@@ -350,6 +385,7 @@ export class AdminSettingsController {
       antisnipeEnabled: s.antisnipeEnabled,
       antisnipeWindowSec: s.antisnipeWindowSec,
       antisnipeExtensionSec: s.antisnipeExtensionSec,
+      extendThrottleSec: s.extendThrottleSec,
       managerContacts: s.managerContacts,
       notificationToggles: s.notificationToggles,
       telegramBotToken: s.telegramBotToken,
@@ -370,6 +406,7 @@ export class AdminSettingsController {
         antisnipeEnabled: dto.antisnipeEnabled,
         antisnipeWindowSec: dto.antisnipeWindowSec,
         antisnipeExtensionSec: dto.antisnipeExtensionSec,
+        extendThrottleSec: dto.extendThrottleSec,
         managerContacts: dto.managerContacts as Prisma.InputJsonObject | undefined,
         notificationToggles: dto.notificationToggles as Prisma.InputJsonObject | undefined,
         telegramBotToken: dto.telegramBotToken,
@@ -382,7 +419,7 @@ export class AdminSettingsController {
   }
 }
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/dashboard')
 export class AdminDashboardController {
   constructor(private readonly prisma: PrismaService) {}

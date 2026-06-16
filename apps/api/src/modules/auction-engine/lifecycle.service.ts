@@ -9,12 +9,15 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { MediaService } from '../admin/media.service';
 import { lotToTick } from '../lots/lot.mapper';
 
 export const AUCTION_QUEUE = 'auction';
 const SWEEP_INTERVAL_MS = 30_000;
 const ENDING_SOON_MS = 5 * 60_000;
 const START_SOON_MS = 15 * 60_000;
+/** Через сколько после выдачи (delivered) очищать медиа лота. */
+const MEDIA_PURGE_MS = 7 * 24 * 60 * 60_000;
 
 interface LockedRow {
   id: string;
@@ -44,6 +47,7 @@ export class LifecycleService implements OnModuleInit {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly telegram: TelegramService,
+    private readonly media: MediaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -137,6 +141,51 @@ export class LifecycleService implements OnModuleInit {
     await this.queue.remove(`start-soon-${lotId}`).catch(() => undefined);
   }
 
+  /** Планирует очистку медиа лота через неделю после выдачи (от deliveredAt). */
+  async scheduleMediaPurge(lotId: string, deliveredAt: Date): Promise<void> {
+    const jobId = `purge-media-${lotId}`;
+    await this.queue.remove(jobId).catch(() => undefined);
+    await this.queue.add(
+      'purge-media',
+      { lotId },
+      {
+        jobId,
+        delay: Math.max(0, deliveredAt.getTime() + MEDIA_PURGE_MS - Date.now()),
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+  }
+
+  /** Отменяет запланированную очистку медиа (например при откате статуса сделки). */
+  async cancelMediaPurge(lotId: string): Promise<void> {
+    await this.queue.remove(`purge-media-${lotId}`).catch(() => undefined);
+  }
+
+  /**
+   * Очистка медиа лота: удаляет файлы из S3 (фото/видео/PDF), записи в БД оставляет
+   * и помечает лот mediaPurgedAt. Идемпотентна (повторный вызов ничего не ломает).
+   */
+  async purgeLotMedia(lotId: string): Promise<void> {
+    const lot = await this.prisma.lot.findUnique({
+      where: { id: lotId },
+      select: {
+        mediaPurgedAt: true,
+        autotekaPdfKey: true,
+        deal: { select: { status: true } },
+        photos: { select: { kind: true, objectKey: true, externalUrl: true } },
+      },
+    });
+    if (!lot) return;
+    if (lot.mediaPurgedAt) return; // уже очищено
+    // Страховка: чистим только реально выданные лоты
+    if (lot.deal?.status !== 'delivered') return;
+
+    await this.media.purgeLotMedia({ photos: lot.photos, autotekaPdfKey: lot.autotekaPdfKey });
+    await this.prisma.lot.update({ where: { id: lotId }, data: { mediaPurgedAt: new Date() } });
+    this.logger.log(`Lot ${lotId} media purged`);
+  }
+
   /** Аудитория лота: участники торгов + добавившие в избранное. */
   private async audienceOf(lotId: string, excludeUserId?: string): Promise<string[]> {
     const [bidders, favs] = await Promise.all([
@@ -162,6 +211,16 @@ export class LifecycleService implements OnModuleInit {
       select: { id: true },
     });
     for (const l of toClose) await this.closeLot(l.id);
+
+    // Страховка: медиа выданных >7д назад лотов, не очищенные джобой (рестарт и т.п.)
+    const toPurge = await this.prisma.lot.findMany({
+      where: {
+        mediaPurgedAt: null,
+        deal: { status: 'delivered', closedAt: { lte: new Date(now.getTime() - MEDIA_PURGE_MS) } },
+      },
+      select: { id: true },
+    });
+    for (const l of toPurge) await this.purgeLotMedia(l.id);
   }
 
   /** upcoming → live. */
@@ -279,13 +338,38 @@ export class LifecycleService implements OnModuleInit {
     this.realtime.toCatalog(WS_EVENTS.LOT_EXTENDED, ext);
     this.realtime.toAdmin(WS_EVENTS.LOT_EXTENDED, ext);
 
-    const bidders = await this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
-    await this.notifications.notifyMany(
-      bidders.map((b) => b.userId),
-      'lot_extended',
-      { lotId, lotTitle: `${updated.make} ${updated.model}`, endsAt: updated.endsAt.toISOString(), reason: 'manual' },
-    );
+    if (await this.shouldNotifyExtend(lotId)) {
+      const bidders = await this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
+      await this.notifications.notifyMany(
+        bidders.map((b) => b.userId),
+        'lot_extended',
+        { lotId, lotTitle: `${updated.make} ${updated.model}`, endsAt: updated.endsAt.toISOString(), reason: 'manual' },
+      );
+    }
     return updated.endsAt;
+  }
+
+  /**
+   * Троттлинг уведомлений «торги продлены»: возвращает true, если по этому лоту
+   * можно слать push (прошло ≥ extendThrottleSec с прошлого), и атомарно отмечает
+   * время. При частых анти-снайп продлениях пользователь не получает спам —
+   * сам таймер (WS LOT_EXTENDED) при этом обновляется всегда.
+   */
+  async shouldNotifyExtend(lotId: string): Promise<boolean> {
+    const settings = await this.settings.get();
+    const throttleSec = settings.extendThrottleSec ?? 0;
+    if (throttleSec <= 0) {
+      await this.prisma.lot.update({ where: { id: lotId }, data: { lastExtendNotifiedAt: new Date() } });
+      return true;
+    }
+    const cutoff = new Date(Date.now() - throttleSec * 1000);
+    // Условный апдейт: проставит время и «выиграет» только если прошлый push был давно
+    // (или его не было). count=1 → нам можно слать; count=0 → недавно уже слали.
+    const res = await this.prisma.lot.updateMany({
+      where: { id: lotId, OR: [{ lastExtendNotifiedAt: null }, { lastExtendNotifiedAt: { lte: cutoff } }] },
+      data: { lastExtendNotifiedAt: new Date() },
+    });
+    return res.count > 0;
   }
 
   /** Снятие лота с торгов. */
@@ -361,10 +445,15 @@ export class LifecycleService implements OnModuleInit {
           payload: { bidId, wasLeader, amount: Number(bid.amount) },
         },
       });
-      return { updated, rejectedId: bidId };
+      return { updated, rejectedId: bidId, rejectedBidderId: bid.userId, newLeaderId: leader?.userId ?? null };
     });
 
-    const payload = { lot: lotToTick(result.updated), rejectedBidId: result.rejectedId };
+    const payload = {
+      lot: lotToTick(result.updated),
+      rejectedBidId: result.rejectedId,
+      rejectedBidderId: result.rejectedBidderId,
+      newLeaderId: result.newLeaderId,
+    };
     this.realtime.toLot(lotId, WS_EVENTS.BID_REJECTED, payload);
     this.realtime.toCatalog(WS_EVENTS.BID_REJECTED, payload);
     this.realtime.toAdmin(WS_EVENTS.BID_REJECTED, payload);

@@ -55,7 +55,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
       socket.data.userId = payload.sub;
       socket.data.role = payload.role;
       socket.join(`user:${payload.sub}`);
-      if (payload.role === 'manager' || payload.role === 'admin') socket.join('admin');
+      if (payload.role !== 'buyer') socket.join('admin');
     } catch {
       // протухший токен — остаёмся анонимом
     }

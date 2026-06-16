@@ -28,6 +28,7 @@ export function AuctionControlPage() {
   const action = useAuctionAction(id ?? '');
 
   const [stepInput, setStepInput] = useState('');
+  const [extendMin, setExtendMin] = useState('');
   useEffect(() => {
     if (lot) setStepInput(String(lot.lotBidStep ?? lot.bidStep));
   }, [lot?.id, lot?.lotBidStep, lot?.bidStep]);
@@ -98,6 +99,32 @@ export function AuctionControlPage() {
                     >
                       Закрыть досрочно
                     </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10 }}>
+                    <input
+                      className="in num"
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={extendMin}
+                      onChange={(e) => setExtendMin(e.target.value)}
+                      placeholder="минут"
+                      style={{ maxWidth: 110 }}
+                    />
+                    <button
+                      className="btn sm"
+                      disabled={busy || !(Number(extendMin) >= 1)}
+                      onClick={() => {
+                        const sec = Math.round(Number(extendMin) * 60);
+                        if (sec >= 5 && sec <= 3600) {
+                          action.mutate({ action: 'extend', seconds: sec });
+                          setExtendMin('');
+                        }
+                      }}
+                    >
+                      Продлить на N минут
+                    </button>
+                    <span className="hint" style={{ margin: 0 }}>от 1 до 60 мин</span>
                   </div>
                 </div>
                 <div style={{ height: 1, background: 'var(--line)' }}></div>

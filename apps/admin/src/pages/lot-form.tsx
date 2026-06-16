@@ -32,6 +32,7 @@ interface FormState {
   description: string;
   options: string;
   addressId: string;
+  autotekaUrl: string;
   startPrice: string;
   reservePrice: string;
   bidStep: string;
@@ -43,6 +44,7 @@ interface FormState {
 const EMPTY: FormState = {
   make: '', model: '', year: '', mileage: '', vin: '', body: '', engine: '', power: '',
   fuel: '', transmission: '', drive: '', color: '', description: '', options: '', addressId: '',
+  autotekaUrl: '',
   startPrice: '', reservePrice: '', bidStep: '', feeRate: '', startsAt: '', endsAt: '',
 };
 
@@ -110,6 +112,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       description: lot.description,
       options: lot.options.join(', '),
       addressId: lot.addressId ?? '',
+      autotekaUrl: lot.autotekaUrl ?? '',
       startPrice: fmt(lot.startPrice),
       reservePrice: fmt(lot.reservePrice),
       bidStep: lot.lotBidStep != null ? fmt(lot.lotBidStep) : '',
@@ -164,6 +167,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       description: form.description.trim() || undefined,
       options: form.options.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
       addressId: form.addressId || null,
+      autotekaUrl: form.autotekaUrl.trim() || null,
       startPrice,
       reservePrice,
       bidStep: form.bidStep.trim() ? num(form.bidStep) : null,
@@ -368,10 +372,26 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
               ) : (
                 <div className="dz">
                   <Ic d={AI.doc} s={26} />
-                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем прикрепите отчёт</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем прикрепите PDF</div>
                   <div className="num" style={{ fontSize: 11 }}>PDF · до 25 МБ</div>
                 </div>
               )}
+
+              {/* Альтернатива загрузке PDF — внешняя ссылка на отчёт */}
+              <div style={{ marginTop: 14 }}>
+                <label className="fld-l">…или ссылка на отчёт</label>
+                <input
+                  className="in"
+                  type="url"
+                  inputMode="url"
+                  value={form.autotekaUrl}
+                  onChange={set('autotekaUrl')}
+                  placeholder="https://avtoteka.ru/report/…"
+                />
+                <div className="hint">
+                  Если задана ссылка, она показывается покупателю вместо загруженного PDF. Сохраняется вместе с лотом.
+                </div>
+              </div>
             </div>
           </div>
         </div>

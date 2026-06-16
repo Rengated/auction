@@ -19,7 +19,11 @@ export function photoToDto(p: LotPhoto): LotPhotoDto {
   return { id: p.id, kind: p.kind, card: photoUrl(p, 'card'), md: photoUrl(p, 'md'), lg: photoUrl(p, 'lg'), sort: p.sort };
 }
 
-export function autotekaPdfUrl(lot: Pick<Lot, 'autotekaPdfKey'>): string | null {
+export function autotekaPdfUrl(lot: Pick<Lot, 'autotekaPdfKey' | 'autotekaUrl' | 'mediaPurgedAt'>): string | null {
+  // Внешняя ссылка приоритетнее и переживает очистку медиа
+  if (lot.autotekaUrl) return lot.autotekaUrl;
+  // Загруженный PDF удалён при очистке медиа — ссылки на 404 не отдаём
+  if (lot.mediaPurgedAt) return null;
   return lot.autotekaPdfKey ? `${S3_PUBLIC}/${lot.autotekaPdfKey}` : null;
 }
 
@@ -62,7 +66,11 @@ export function lotToDto(
     endsAt: lot.endsAt.toISOString(),
     bidCount: lot.bidCount,
     watchersCount: lot.watchersCount,
-    photos: [...lot.photos].sort((a, b) => a.sort - b.sort).map(photoToDto),
+    // После очистки медиа остаются только внешние (externalUrl) фото — наши файлы удалены
+    photos: [...lot.photos]
+      .filter((p) => (lot.mediaPurgedAt ? Boolean(p.externalUrl) : true))
+      .sort((a, b) => a.sort - b.sort)
+      .map(photoToDto),
     mileage: lot.mileage,
     engine: lot.engine,
     power: lot.power,
@@ -76,6 +84,7 @@ export function lotToDto(
     options: (lot.options as string[]) ?? [],
     address: lot.addressText ?? null,
     autotekaPdfUrl: autotekaPdfUrl(lot),
+    mediaPurged: lot.mediaPurgedAt != null,
     feeRate: lot.feeRate != null ? Number(lot.feeRate) : defaults.feeRate,
     isFavorite: extra?.isFavorite,
     my: extra?.my,

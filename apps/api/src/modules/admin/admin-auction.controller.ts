@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { IsInt, Max, Min } from 'class-validator';
-import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
+import { CurrentUser, Roles, STAFF, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LifecycleService } from '../auction-engine/lifecycle.service';
 
@@ -12,7 +12,7 @@ class StepDto {
   @IsInt() @Min(1000) step!: number;
 }
 
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/lots/:id')
 export class AdminAuctionController {
   constructor(

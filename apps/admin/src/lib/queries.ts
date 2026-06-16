@@ -22,6 +22,10 @@ export type AdminLot = LotDto & {
   lotFeeRate: number | null;
   /** Выбранный адрес (точка осмотра/выдачи), null → без адреса */
   addressId: string | null;
+  /** Сырая внешняя ссылка на отчёт Автотеки (для редактирования) */
+  autotekaUrl: string | null;
+  /** Загружен ли PDF-файл Автотеки (в отличие от внешней ссылки) */
+  autotekaPdfAttached: boolean;
   /** Лот в архиве (скрыт из каталога и основных вкладок). */
   archived: boolean;
 };
@@ -46,6 +50,8 @@ export interface LotFormPayload {
   description?: string;
   options?: string[];
   addressId?: string | null;
+  /** Внешняя ссылка на отчёт Автотеки (альтернатива загрузке PDF); null → снять */
+  autotekaUrl?: string | null;
   startPrice: number;
   reservePrice: number;
   bidStep?: number | null;
@@ -71,6 +77,9 @@ export interface AdminDeal {
   closedAt: string | null;
 }
 
+/** Роли персонала, назначаемые в админке. */
+export type StaffRole = 'manager' | 'admin' | 'director';
+
 export interface AdminUser {
   id: string;
   name: string;
@@ -78,7 +87,7 @@ export interface AdminUser {
   isStaff: boolean;
   phone: string | null;
   email: string | null;
-  role: 'buyer' | 'manager' | 'admin';
+  role: 'buyer' | 'manager' | 'admin' | 'director';
   verified: boolean;
   blockedUntil: string | null;
   blockPermanent: boolean;
@@ -95,6 +104,7 @@ export interface AdminSettings {
   antisnipeEnabled: boolean;
   antisnipeWindowSec: number;
   antisnipeExtensionSec: number;
+  extendThrottleSec: number;
   managerContacts: Record<string, string>;
   notificationToggles: Record<string, boolean>;
   telegramBotToken: string;
@@ -199,10 +209,15 @@ export const useAdminFeed = (lotId: string | undefined) =>
     enabled: Boolean(lotId),
   });
 
-export const useDeals = (page = 1) =>
+export const useDeals = (page = 1, range?: { from?: string; to?: string }) =>
   useQuery<Page<AdminDeal>>({
-    queryKey: ['deals', page],
-    queryFn: () => get(`/admin/deals?limit=${PAGE_LIMITS.admin}&offset=${(page - 1) * PAGE_LIMITS.admin}`),
+    queryKey: ['deals', page, range?.from ?? '', range?.to ?? ''],
+    queryFn: () => {
+      const qs = new URLSearchParams({ limit: String(PAGE_LIMITS.admin), offset: String((page - 1) * PAGE_LIMITS.admin) });
+      if (range?.from) qs.set('from', range.from);
+      if (range?.to) qs.set('to', range.to);
+      return get(`/admin/deals?${qs.toString()}`);
+    },
     placeholderData: (prev) => prev,
   });
 
@@ -408,7 +423,7 @@ export function usePatchUser() {
 /** Редактирование сотрудника (имя/роль), только admin. */
 export function usePatchStaff() {
   const qc = useQueryClient();
-  return useMutation<{ ok: true }, ApiError, { id: string; displayName?: string; role?: 'manager' | 'admin' }>({
+  return useMutation<{ ok: true }, ApiError, { id: string; displayName?: string; role?: StaffRole }>({
     mutationFn: ({ id, ...data }) => patch(`/admin/staff/${id}`, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
@@ -450,7 +465,7 @@ export function useCreateStaff() {
   return useMutation<
     { id: string },
     ApiError,
-    { username: string; password: string; displayName: string; role: 'manager' | 'admin' }
+    { username: string; password: string; displayName: string; role: StaffRole }
   >({
     mutationFn: (data) => post('/admin/staff', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),

@@ -119,8 +119,8 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     ['/auctions', 'Торги', AI.gavel, liveN || null],
     ['/deals', 'Сделки', AI.deals, null],
     ['/users', 'Пользователи', AI.users, null],
-    // Персонал — только администратору
-    ...(me?.role === 'admin' ? ([['/staff', 'Персонал', AI.users, null]] as const) : []),
+    // Персонал — администратору и директору
+    ...(me?.role === 'admin' || me?.role === 'director' ? ([['/staff', 'Персонал', AI.users, null]] as const) : []),
     ['/settings', 'Параметры', AI.gear, null],
   ] as const;
   const active = (p: string) => (p === '/' ? location.pathname === '/' : location.pathname.startsWith(p));
@@ -153,7 +153,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="av">{(me?.displayName?.[0] ?? 'М').toUpperCase()}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="who">{me?.displayName ?? '—'}</div>
-          <div className="role">{me?.role === 'admin' ? 'администратор' : 'менеджер торгов'}</div>
+          <div className="role">{me?.role === 'director' ? 'директор' : me?.role === 'admin' ? 'администратор' : 'менеджер торгов'}</div>
         </div>
         <button className="iconbtn2" title="Выйти" onClick={() => logout().then(() => window.location.reload())}>
           <svg viewBox="0 0 24 24" style={{ width: 16, height: 16 }} stroke="currentColor" fill="none" strokeWidth={1.8}>

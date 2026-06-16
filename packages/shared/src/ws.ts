@@ -46,6 +46,10 @@ export interface LotStatusEvent {
 export interface BidRejectedEvent {
   lot: LotTickDto;
   rejectedBidId: string;
+  /** id владельца отклонённой ставки — чтобы клиент понял, не его ли ставку сняли */
+  rejectedBidderId: string;
+  /** id нового лидера после пересчёта (null, если активных ставок не осталось) */
+  newLeaderId: string | null;
 }
 
 export interface OutbidEvent {

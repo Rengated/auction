@@ -4,19 +4,7 @@ import { fmt, fmtTime } from '@hermes/shared';
 import { useAdminLots, useDashboard } from '../lib/queries';
 import { leftSec, useNow } from '../lib/time';
 import { AI, Ic, Sb } from '../components/icons';
-
-const RANGE_PRESETS: Array<[string, number]> = [
-  ['Неделя', 7],
-  ['Месяц', 30],
-  ['Квартал', 90],
-];
-/** ISO начала суток N дней назад. */
-const daysAgoISO = (n: number) => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - (n - 1));
-  return d.toISOString();
-};
+import { DateRange, defaultRange, type DateRangeValue } from '../components/date-range';
 
 const DOT_COLORS: Record<string, string> = {
   bid: 'var(--live)',
@@ -38,9 +26,8 @@ function ago(at: string, now: number): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const now = useNow();
-  const [rangeDays, setRangeDays] = useState(7);
-  const from = daysAgoISO(rangeDays);
-  const { data } = useDashboard(from);
+  const [range, setRange] = useState<DateRangeValue>(defaultRange);
+  const { data } = useDashboard(range.from, range.to);
   const { data: livePage } = useAdminLots('live');
   const { data: soonPage } = useAdminLots('soon');
 
@@ -48,6 +35,8 @@ export function DashboardPage() {
   const upcoming = soonPage?.items ?? [];
   const schedule = upcoming.concat(live.slice(0, 2));
 
+  // Кол-во дней в выбранном диапазоне (для подписи бакетов как фолбэк).
+  const rangeDays = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86_400_000) + 1);
   const week = data?.week ?? [];
   const wmax = Math.max(1, ...week);
   // Подписи дней бакетов: от начала диапазона (data.from) по числу бакетов.
@@ -68,11 +57,9 @@ export function DashboardPage() {
 
   return (
     <div className="content fade">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <span style={{ font: '600 12px/1 var(--ui)', color: 'var(--dim)', marginRight: 4 }}>Период:</span>
-        {RANGE_PRESETS.map(([label, d]) => (
-          <button key={d} className={`btn sm ${rangeDays === d ? 'acc' : ''}`} onClick={() => setRangeDays(d)}>{label}</button>
-        ))}
+        <DateRange value={range} onChange={setRange} />
       </div>
       <div className="stats">
         <div className="stat">

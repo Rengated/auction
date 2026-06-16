@@ -8,6 +8,15 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 
+/**
+ * Группы ролей для @Roles(). Иерархия персонала:
+ * director (владелец) → admin (настройки/параметры) → manager (проводит лоты).
+ */
+/** Любой сотрудник: менеджер, админ, директор. */
+export const STAFF: Role[] = ['manager', 'admin', 'director'];
+/** Админ и выше: настройки, персонал, чувствительные операции. */
+export const ADMIN_UP: Role[] = ['admin', 'director'];
+
 export interface AuthUser {
   id: string;
   role: Role;

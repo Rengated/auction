@@ -1,6 +1,6 @@
 // Доменные типы Hermes Trade — общие для api/web/admin.
 
-export type Role = 'buyer' | 'manager' | 'admin';
+export type Role = 'buyer' | 'manager' | 'admin' | 'director';
 
 /** Статус лота в БД. `ending` не хранится — см. displayStatus(). */
 export type LotStatus = 'draft' | 'upcoming' | 'live' | 'sold' | 'finished' | 'withdrawn';
@@ -53,8 +53,10 @@ export interface LotDto {
   options: string[];
   /** Адрес осмотра/выдачи (снимок из справочника), если задан */
   address: string | null;
-  /** PDF-отчёт Автотеки, если загружен администратором */
+  /** Отчёт Автотеки: внешняя ссылка либо публичный URL загруженного PDF */
   autotekaPdfUrl: string | null;
+  /** true → медиа (фото/видео/PDF) удалено из хранилища по истечении срока после выдачи */
+  mediaPurged?: boolean;
   /** Эффективная комиссия: своя у лота либо глобальная из настроек */
   feeRate: number;
   isFavorite?: boolean;

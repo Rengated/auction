@@ -11,6 +11,7 @@ enum Role {
   buyer
   manager
   admin
+  director
 }
 
 enum LotStatus {
@@ -133,6 +134,8 @@ model Lot {
   options      Json    @default("[]")
   /** PDF-отчёт Автотеки, загруженный администратором (ключ в MinIO) */
   autotekaPdfKey String? @map("autoteka_pdf_key")
+  /** Альтернатива загрузке: внешняя ссылка на отчёт Автотеки. Приоритетнее autotekaPdfKey. */
+  autotekaUrl    String? @map("autoteka_url")
 
   /** Адрес осмотра/выдачи: FK в справочник + денормализованный снимок «label · fullAddress» */
   addressId   String?  @map("address_id") @db.Uuid
@@ -143,6 +146,11 @@ model Lot {
 
   /** Архив: мягкое скрытие из каталога покупателя и основных списков админки. */
   archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+
+  /** Медиа (фото/видео/PDF) удалены из хранилища через неделю после выдачи лота. Записи остаются. */
+  mediaPurgedAt DateTime? @map("media_purged_at") @db.Timestamptz()
+  /** Время последнего отправленного push «торги продлены» — для троттлинга уведомлений. */
+  lastExtendNotifiedAt DateTime? @map("last_extend_notified_at") @db.Timestamptz()
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
@@ -260,6 +268,8 @@ model Settings {
   antisnipeEnabled     Boolean @default(true) @map("antisnipe_enabled")
   antisnipeWindowSec   Int     @default(120) @map("antisnipe_window_sec")
   antisnipeExtensionSec Int    @default(120) @map("antisnipe_extension_sec")
+  /** Минимальный интервал (сек) между push-уведомлениями «торги продлены» по одному лоту */
+  extendThrottleSec    Int     @default(300) @map("extend_throttle_sec")
   managerContacts      Json    @default("{}") @map("manager_contacts")
   notificationToggles  Json    @default("{}") @map("notification_toggles")
   telegramBotToken     String  @default("") @map("telegram_bot_token")

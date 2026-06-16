@@ -236,6 +236,15 @@ export function SettingsPage() {
               </div>
             </>
           )}
+          <div className="set-row">
+            <div className="info">
+              <div className="t">Пауза между уведомлениями о продлении</div>
+              <div className="d">Чтобы при серии продлений не слать пуш каждый раз. 0 — слать всегда. Таймер у покупателя обновляется в любом случае.</div>
+            </div>
+            <div className="ctl">
+              <Stepper val={form.extendThrottleSec} set={(n) => up({ extendThrottleSec: n })} delta={30} suf="сек" />
+            </div>
+          </div>
         </div>
 
         <div className="pcard">

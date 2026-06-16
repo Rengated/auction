@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../admin/media.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { AUCTION_QUEUE, LifecycleService } from './lifecycle.service';
@@ -15,6 +16,7 @@ import { MyBidsService } from './my-bids.service';
     AuthModule,
     SettingsModule,
     NotificationsModule,
+    MediaModule,
   ],
   controllers: [BidsController],
   providers: [BidService, LifecycleService, AuctionProcessor, MyBidsService],

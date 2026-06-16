@@ -92,13 +92,17 @@ export class BidService {
         this.realtime.toLot(lotId, WS_EVENTS.LOT_EXTENDED, ext);
         this.realtime.toCatalog(WS_EVENTS.LOT_EXTENDED, ext);
 
-        // «Торги продлены» участникам (кроме автора продлившей ставки)
-        const bidders = await this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
-        await this.notifications.notifyMany(
-          bidders.map((b) => b.userId).filter((id) => id !== userId),
-          'lot_extended',
-          { lotId, lotTitle: placed.lotTitle, endsAt: placed.lotAfter.endsAt.toISOString(), reason: 'antisnipe' },
-        );
+        // «Торги продлены» участникам (кроме автора продлившей ставки).
+        // Троттлинг: при серии анти-снайп продлений push шлём не чаще раза в
+        // extendThrottleSec — иначе 10 продлений = 10 уведомлений.
+        if (await this.lifecycle.shouldNotifyExtend(lotId)) {
+          const bidders = await this.prisma.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
+          await this.notifications.notifyMany(
+            bidders.map((b) => b.userId).filter((id) => id !== userId),
+            'lot_extended',
+            { lotId, lotTitle: placed.lotTitle, endsAt: placed.lotAfter.endsAt.toISOString(), reason: 'antisnipe' },
+          );
+        }
       }
 
       if (placed.prevLeader && placed.prevLeader.userId !== userId) {

@@ -13,7 +13,7 @@ import {
 } from '../lib/queries';
 import { useToast } from '../components/toast';
 
-const ROLE_LABEL: Record<AdminUser['role'], string> = { buyer: 'Покупатель', manager: 'Менеджер', admin: 'Админ' };
+const ROLE_LABEL: Record<AdminUser['role'], string> = { buyer: 'Покупатель', manager: 'Менеджер', admin: 'Админ', director: 'Директор' };
 
 const isBlocked = (u: AdminUser) => u.blockPermanent || Boolean(u.blockedUntil);
 const blockLabel = (u: AdminUser) =>

@@ -9,18 +9,33 @@ import {
   useSetStaffPassword,
   useUsers,
   type AdminUser,
+  type StaffRole,
 } from '../lib/queries';
 
-const ROLE_LABEL: Record<'manager' | 'admin', string> = { manager: 'Менеджер', admin: 'Админ' };
+const ROLE_LABEL: Record<StaffRole, string> = { manager: 'Менеджер', admin: 'Админ', director: 'Директор' };
+
+/** Нормализуем роль пользователя к одной из назначаемых (buyer не встречается в персонале). */
+const asStaffRole = (r: string): StaffRole => (r === 'admin' || r === 'director' ? r : 'manager');
+
+/** Опции роли в селекте: admin/director доступны только директору. */
+function RoleOptions({ isDirector }: { isDirector: boolean }) {
+  return (
+    <>
+      <option value="manager">Менеджер</option>
+      {isDirector && <option value="admin">Админ</option>}
+      {isDirector && <option value="director">Директор</option>}
+    </>
+  );
+}
 
 /** Форма создания сотрудника. */
-function CreateForm({ onDone }: { onDone: () => void }) {
+function CreateForm({ onDone, isDirector }: { onDone: () => void; isDirector: boolean }) {
   const create = useCreateStaff();
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<'manager' | 'admin'>('manager');
+  const [role, setRole] = useState<StaffRole>('manager');
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,9 +58,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         <div><label className="fld-l">Пароль</label><input className="in" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="не короче 6 символов" /></div>
         <div>
           <label className="fld-l">Роль</label>
-          <select className="in" value={role} onChange={(e) => setRole(e.target.value as 'manager' | 'admin')}>
-            <option value="manager">Менеджер</option>
-            <option value="admin">Админ</option>
+          <select className="in" value={role} onChange={(e) => setRole(e.target.value as StaffRole)}>
+            <RoleOptions isDirector={isDirector} />
           </select>
         </div>
       </div>
@@ -60,16 +74,18 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 }
 
 /** Карточка сотрудника: имя/роль редактируются инлайн, смена пароля, архивация. */
-function StaffCard({ user, me }: { user: AdminUser; me?: { id: string } }) {
+function StaffCard({ user, me, isDirector }: { user: AdminUser; me?: { id: string }; isDirector: boolean }) {
   const patchStaff = usePatchStaff();
   const setPw = useSetStaffPassword(user.id);
   const archive = useArchiveUser();
   const toast = useToast();
   const [mode, setMode] = useState<'view' | 'edit' | 'password'>('view');
   const [name, setName] = useState(user.name);
-  const [role, setRole] = useState<'manager' | 'admin'>(user.role === 'admin' ? 'admin' : 'manager');
+  const [role, setRole] = useState<StaffRole>(asStaffRole(user.role));
   const [password, setPassword] = useState('');
   const isSelf = me?.id === user.id;
+  // Менять роль admin/director-сотрудника может только директор.
+  const roleLocked = !isDirector && (user.role === 'admin' || user.role === 'director');
 
   const saveEdit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,13 +117,13 @@ function StaffCard({ user, me }: { user: AdminUser; me?: { id: string } }) {
           <div style={{ font: '700 15px/1.2 var(--ui)' }}>{user.name}{isSelf && <span style={{ color: 'var(--faint)', fontWeight: 500 }}> · вы</span>}</div>
           <div className="num" style={{ fontSize: 12.5, color: 'var(--dim)', marginTop: 3 }}>{user.username ?? '—'}</div>
         </div>
-        <span className="sb" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>{ROLE_LABEL[user.role === 'admin' ? 'admin' : 'manager']}</span>
+        <span className="sb" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>{ROLE_LABEL[asStaffRole(user.role)]}</span>
         {user.archived && <span className="sb fin">в архиве</span>}
       </div>
 
       {mode === 'view' && (
         <div style={{ display: 'flex', gap: 8, padding: '0 20px 16px', flexWrap: 'wrap' }}>
-          <button className="btn ghost sm" onClick={() => { setName(user.name); setRole(user.role === 'admin' ? 'admin' : 'manager'); setMode('edit'); }}>
+          <button className="btn ghost sm" onClick={() => { setName(user.name); setRole(asStaffRole(user.role)); setMode('edit'); }}>
             <Ic d={AI.edit} s={14} /> Изменить
           </button>
           <button className="btn ghost sm" onClick={() => setMode('password')}>Сменить пароль</button>
@@ -125,11 +141,11 @@ function StaffCard({ user, me }: { user: AdminUser; me?: { id: string } }) {
             <div><label className="fld-l">Имя</label><input className="in" autoFocus value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div>
               <label className="fld-l">Роль</label>
-              <select className="in" value={role} onChange={(e) => setRole(e.target.value as 'manager' | 'admin')} disabled={isSelf}>
-                <option value="manager">Менеджер</option>
-                <option value="admin">Админ</option>
+              <select className="in" value={role} onChange={(e) => setRole(e.target.value as StaffRole)} disabled={isSelf || roleLocked}>
+                <RoleOptions isDirector={isDirector} />
               </select>
               {isSelf && <div className="hint">Свою роль изменить нельзя.</div>}
+              {!isSelf && roleLocked && <div className="hint">Роль админа/директора меняет только директор.</div>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -152,6 +168,7 @@ function StaffCard({ user, me }: { user: AdminUser; me?: { id: string } }) {
 
 export function StaffPage() {
   const { data: me } = useMe();
+  const isDirector = me?.role === 'director';
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const { data } = useUsers(showArchived ? 'archived' : 'manager');
@@ -169,7 +186,7 @@ export function StaffPage() {
             {!creating && !showArchived && <button className="btn acc sm" onClick={() => setCreating(true)}><Ic d={AI.plus} s={16} /> Добавить</button>}
           </div>
         </div>
-        {creating && !showArchived && <CreateForm onDone={() => setCreating(false)} />}
+        {creating && !showArchived && <CreateForm onDone={() => setCreating(false)} isDirector={isDirector} />}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
@@ -178,7 +195,7 @@ export function StaffPage() {
             {showArchived ? 'В архиве пусто' : 'Сотрудников нет'}
           </div>
         ) : (
-          staff.map((u) => <StaffCard key={u.id} user={u} me={me ?? undefined} />)
+          staff.map((u) => <StaffCard key={u.id} user={u} me={me ?? undefined} isDirector={isDirector} />)
         )}
       </div>
     </div>

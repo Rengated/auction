@@ -9,6 +9,7 @@ import { useIsMobile } from './lib/layout';
 import { useUiStore } from './lib/ui-store';
 import { MobileShell, WebShell } from './shells';
 import { AuthPromptModal } from './components/auth-modal';
+import { Onboarding } from './components/onboarding';
 import { AuthPage, BlockedScreen } from './pages/auth';
 import { LegalPage } from './pages/legal';
 import { CatalogPage } from './pages/catalog';
@@ -106,8 +107,18 @@ function Router() {
         <Route path="*" element={guestPage(<NotFoundPage />)} />
       </Routes>
       <AuthPromptModal />
+      <OnboardingGate />
     </BrowserRouter>
   );
+}
+
+/** Показывает онбординг один раз при первом входе (флаг в localStorage). */
+function OnboardingGate() {
+  const done = useUiStore((s) => s.onboardingDone);
+  const location = useLocation();
+  // Не перекрываем экраны входа/правовых документов
+  if (done || location.pathname.startsWith('/auth') || location.pathname.startsWith('/legal')) return null;
+  return <Onboarding />;
 }
 
 export function App() {

@@ -74,4 +74,22 @@ export class MediaService {
       .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }))
       .catch((e) => this.logger.warn(`delete ${objectKey}: ${e.message}`));
   }
+
+  /**
+   * Удаление всех S3-объектов лота (фото в 3 размерах, видео, PDF Автотеки).
+   * Внешние ссылки (externalUrl) пропускаются — они не наши файлы.
+   * Записи в БД здесь не трогаются (это делает вызывающий код).
+   */
+  async purgeLotMedia(media: {
+    photos: Array<{ kind: 'photo' | 'video'; objectKey: string; externalUrl: string | null }>;
+    autotekaPdfKey: string | null;
+  }): Promise<void> {
+    const tasks: Array<Promise<void>> = [];
+    for (const p of media.photos) {
+      if (!p.objectKey || p.externalUrl) continue; // внешние/пустые не наши
+      tasks.push(p.kind === 'video' ? this.deleteObject(p.objectKey) : this.deleteLotPhoto(p.objectKey));
+    }
+    if (media.autotekaPdfKey) tasks.push(this.deleteObject(media.autotekaPdfKey));
+    await Promise.all(tasks);
+  }
 }

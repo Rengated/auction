@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import type { AddressDto } from '@hermes/shared';
-import { Roles } from '../../common/decorators';
+import { Roles, STAFF } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 class AddressInput {
@@ -12,7 +12,7 @@ class AddressInput {
 }
 
 /** Справочник адресов (точек осмотра/выдачи) — заполняется заранее, выбирается на лоте. */
-@Roles('manager', 'admin')
+@Roles(...STAFF)
 @Controller('admin/addresses')
 export class AdminAddressesController {
   constructor(private readonly prisma: PrismaService) {}

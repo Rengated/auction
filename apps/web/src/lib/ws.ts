@@ -82,6 +82,19 @@ export function getSocket(): Socket {
 
   socket.on(WS_EVENTS.BID_REJECTED, (e: BidRejectedEvent) => {
     patchLotCaches(e.lot);
+    // Лидерство пересчитано на сервере: моё isLeading = я ли новый лидер.
+    // Иначе после снятия моей завышенной ставки бейдж «вы лидируете» и кнопка
+    // «ставка принята» зависали бы со старой ценой.
+    const me = queryClient.getQueryData<{ id: string } | null>(['me']);
+    if (me) {
+      queryClient.setQueryData<LotDto>(['lot', e.lot.id], (old) =>
+        old?.my ? { ...old, my: { ...old.my, isLeading: e.newLeaderId === me.id } } : old,
+      );
+      // Если сняли именно мою ставку — обновим «мои ставки»
+      if (e.rejectedBidderId === me.id) {
+        queryClient.invalidateQueries({ queryKey: ['my-bids'] });
+      }
+    }
     queryClient.invalidateQueries({ queryKey: ['bids', e.lot.id] });
   });
 
