@@ -432,7 +432,7 @@ function ManagerBlock({ mobile }: { mobile: boolean }) {
   if (mc.max) contacts.push([I.maxIcon, 'MAX', mc.max, maxHref(mc.max), true]);
   if (mc.email) contacts.push([I.mail, 'Почта', mc.email, `mailto:${mc.email}`, false]);
   const name = mc.name?.trim();
-  const title = name ? `${name}, ваш менеджер` : 'Менеджер Hermes Trade';
+  const title = name ? `${name}, ваш менеджер` : 'Менеджер Auction Germes';
   const initial = (name?.charAt(0) || 'М').toUpperCase();
   return (
     <div>

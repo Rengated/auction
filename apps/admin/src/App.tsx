@@ -24,7 +24,7 @@ function Login({ denied }: { denied?: boolean }) {
         <div className="logo" style={{ padding: 0, marginBottom: 18 }}>
           <HermesH size={34} />
           <div>
-            <div className="nm">Hermes Trade</div>
+            <div className="nm">Auction Germes</div>
             <div className="sub">админ-панель</div>
           </div>
         </div>
@@ -131,7 +131,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
       <div className="logo">
         <HermesH size={34} />
         <div>
-          <div className="nm">Hermes Trade</div>
+          <div className="nm">Auction Germes</div>
           <div className="sub">админ-панель</div>
         </div>
       </div>
@@ -174,7 +174,7 @@ const TITLES: Array<[string, string, string]> = [
   ['/users', 'Управление', 'Пользователи'],
   ['/staff', 'Управление', 'Персонал'],
   ['/settings', 'Управление', 'Параметры аукциона'],
-  ['/', 'Hermes Trade', 'Дашборд'],
+  ['/', 'Auction Germes', 'Дашборд'],
 ];
 
 function Topbar({ onBurger }: { onBurger: () => void }) {
@@ -218,7 +218,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Gate({ children }: { children: React.ReactNode }) {
   const { data: me, isLoading } = useMe();
-  if (isLoading) return <div className="login-stage" style={{ color: 'var(--faint)' }}>Hermes Trade…</div>;
+  if (isLoading) return <div className="login-stage" style={{ color: 'var(--faint)' }}>Auction Germes…</div>;
   if (!me) return <Login />;
   if (me.role === 'buyer') return <Login denied />;
   return <Shell>{children}</Shell>;

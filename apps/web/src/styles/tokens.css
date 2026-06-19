@@ -1,7 +1,7 @@
 /* ============================================================
-   Hermes Trade — design system "Concours"
+   Auction Germes — design system "Concours"
    Перенос hifi.css + hifi-web.css из дизайн-хендоффа.
-   Канон: терракота #c9533c, мягкие углы, тёмная тема по умолчанию.
+   Канон: оранжевый Germes #E0632B, мягкие углы, тёмная тема по умолчанию.
    ============================================================ */
 
 :root {
@@ -16,7 +16,7 @@
   --text-dim:  #b6bcc7;
   --text-faint:#828a98;
 
-  --accent:     #c9533c;
+  --accent:     #E0632B;
   --accent-deep: color-mix(in srgb, var(--accent) 80%, #000);
   --accent-glow: color-mix(in srgb, var(--accent) 30%, transparent);
 

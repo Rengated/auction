@@ -55,7 +55,7 @@ function AddressCard({ address }: { address: string }) {
 async function shareLot(lot: LotDto): Promise<boolean> {
   const url = `${location.origin}/lots/${lot.id}`;
   const title = `${lot.make} ${lot.model}, ${lot.year}`;
-  const text = `${title} — ${rub(lot.currentPrice)} · ${fmt(lot.mileage)} км на Hermes Trade`;
+  const text = `${title} — ${rub(lot.currentPrice)} · ${fmt(lot.mileage)} км на Auction Germes`;
   if (navigator.share) {
     try {
       await navigator.share({ title, text, url });

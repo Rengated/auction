@@ -7,7 +7,7 @@ import { goYandex } from '../lib/auth';
 import { useIsMobile } from '../lib/layout';
 import { HermesLogo, YandexGlyph, YA_RED } from '../components/brand';
 
-const HERO_IMG = 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1200&q=75&auto=format&fit=crop';
+const HERO_IMG = '/auth-hero.jpg';
 
 /** Чекбокс согласия с политикой/правилами — без него вход недоступен. */
 function ConsentBlock({ agreed, onChange }: { agreed: boolean; onChange: (v: boolean) => void }) {
@@ -142,7 +142,7 @@ export function BlockedScreen({ me }: { me: MeDto }) {
         </div>
         <h1 style={{ font: '800 24px/1.15 var(--ui)', letterSpacing: '-0.02em', margin: 0 }}>Вы заблокированы</h1>
         <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.55, margin: '14px 0 0' }}>
-          Доступ к Hermes Trade ограничен
+          Доступ к Auction Germes ограничен
         </p>
         {me.blockReason && (
           <p style={{ color: 'var(--text-dim)', fontSize: 13.5, lineHeight: 1.5, margin: '10px 0 0' }}>

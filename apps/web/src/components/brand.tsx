@@ -1,12 +1,33 @@
-/* Бренд-знаки Hermes Trade — из hifi-shared.jsx */
+/* Бренд-знаки Auction Germes — оранжевая плитка AG (Onest) */
 
-export function HermesH({ size = 40, color = '#cdd3da' }: { size?: number; color?: string }) {
+/**
+ * Монограмма AG: оранжевая плитка-squircle с чёрными буквами AG (Onest 800).
+ * `color` сохранён в сигнатуре для обратной совместимости с местами вызова,
+ * но визуал бренда фиксирован (плитка с градиентом).
+ */
+export function HermesH({ size = 40 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" style={{ display: 'block' }} aria-label="Hermes Trade">
-      <circle cx="60" cy="60" r="52" fill="none" stroke={color} strokeWidth="3" opacity="0.55" />
-      <rect x="40" y="36" width="6" height="48" fill={color} />
-      <rect x="74" y="36" width="6" height="48" fill={color} />
-      <path d="M46 64 L74 52" stroke={color} strokeWidth="6" strokeLinecap="round" fill="none" />
+    <svg width={size} height={size} viewBox="0 0 120 120" style={{ display: 'block' }} aria-label="Auction Germes">
+      <defs>
+        <linearGradient id="ag-tile" x1="16" y1="0" x2="104" y2="120" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ef7438" />
+          <stop offset="1" stopColor="#c44e1d" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="120" height="120" rx="27" ry="27" fill="url(#ag-tile)" />
+      <text
+        x="60"
+        y="60"
+        fontFamily="'Onest', sans-serif"
+        fontWeight={800}
+        fontSize="64"
+        fill="#16140f"
+        textAnchor="middle"
+        dominantBaseline="central"
+        letterSpacing="-3"
+      >
+        AG
+      </text>
     </svg>
   );
 }
@@ -15,7 +36,7 @@ export function HermesLogo({
   markSize = 30,
   fontSize = 17,
   color = 'var(--text)',
-  accent = '#aeb6bf',
+  accent = 'var(--text-dim)',
   sub = true,
 }: {
   markSize?: number;
@@ -26,14 +47,14 @@ export function HermesLogo({
 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 11 }}>
-      <HermesH size={markSize} color={accent} />
+      <HermesH size={markSize} />
       <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-        <span style={{ fontFamily: "'Marcellus', serif", letterSpacing: '0.18em', textTransform: 'uppercase', fontSize, color }}>
-          Hermes
+        <span style={{ fontFamily: "'Onest', sans-serif", fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize, color }}>
+          Auction
         </span>
         {sub && (
-          <span style={{ fontFamily: "'Hanken Grotesk', sans-serif", letterSpacing: '0.42em', textTransform: 'uppercase', fontSize: Math.round(fontSize * 0.42), color: accent, marginTop: 5 }}>
-            Trade
+          <span style={{ fontFamily: "'Onest', sans-serif", fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', fontSize: Math.round(fontSize * 0.62), color: accent, marginTop: 5 }}>
+            Germes
           </span>
         )}
       </span>

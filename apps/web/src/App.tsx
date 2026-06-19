@@ -33,7 +33,7 @@ function Shell({ children, mobileNav = true }: { children: React.ReactNode; mobi
 }
 
 const loadingScreen = (
-  <div style={{ display: 'grid', placeItems: 'center', height: '100dvh', color: 'var(--text-faint)' }}>Hermes Trade…</div>
+  <div style={{ display: 'grid', placeItems: 'center', height: '100dvh', color: 'var(--text-faint)' }}>Auction Germes…</div>
 );
 
 /** Приватный гейт: требует входа (гость → экран входа) + блокировка. */

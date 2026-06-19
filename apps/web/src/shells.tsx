@@ -137,7 +137,7 @@ export function WebShell({ children, onSearch }: { children: ReactNode; onSearch
         <div className="wrap">
           <div className="row">
             <span style={{ color: 'var(--text-dim)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <HermesH size={22} color="#9aa2ac" /> Hermes Trade
+              <HermesH size={22} color="#9aa2ac" /> Auction Germes
             </span>
             <span style={{ display: 'inline-flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
               <Link to="/legal/privacy" style={{ color: 'inherit', textDecoration: 'none' }}>Политика конфиденциальности</Link>

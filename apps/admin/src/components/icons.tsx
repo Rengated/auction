@@ -38,13 +38,29 @@ export function Ic({ d, s = 16 }: { d: ReactNode; s?: number }) {
   return <span style={{ width: s, height: s, display: 'inline-flex', flex: 'none' }}>{d}</span>;
 }
 
-export function HermesH({ size = 34, color = '#c0a98a' }: { size?: number; color?: string }) {
+export function HermesH({ size = 34 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" style={{ display: 'block' }} aria-label="Hermes Trade">
-      <circle cx="60" cy="60" r="52" fill="none" stroke={color} strokeWidth="3" opacity="0.55" />
-      <rect x="40" y="36" width="6" height="48" fill={color} />
-      <rect x="74" y="36" width="6" height="48" fill={color} />
-      <path d="M46 64 L74 52" stroke={color} strokeWidth="6" strokeLinecap="round" fill="none" />
+    <svg width={size} height={size} viewBox="0 0 120 120" style={{ display: 'block' }} aria-label="Auction Germes">
+      <defs>
+        <linearGradient id="ag-tile-admin" x1="16" y1="0" x2="104" y2="120" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ef7438" />
+          <stop offset="1" stopColor="#c44e1d" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="120" height="120" rx="27" ry="27" fill="url(#ag-tile-admin)" />
+      <text
+        x="60"
+        y="60"
+        fontFamily="'Onest', sans-serif"
+        fontWeight={800}
+        fontSize="64"
+        fill="#16140f"
+        textAnchor="middle"
+        dominantBaseline="central"
+        letterSpacing="-3"
+      >
+        AG
+      </text>
     </svg>
   );
 }

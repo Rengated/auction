@@ -28,7 +28,7 @@ export class OgController {
     return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <title>${this.esc(title)}</title>
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Hermes Trade">
+<meta property="og:site_name" content="Auction Germes">
 <meta property="og:title" content="${this.esc(title)}">
 <meta property="og:description" content="${this.esc(description)}">
 <meta property="og:url" content="${this.esc(url)}">
@@ -45,7 +45,7 @@ ${img}
   home(@Res() res: Response) {
     res.send(
       this.page({
-        title: 'Hermes Trade — онлайн-аукцион автомобилей',
+        title: 'Auction Germes — онлайн-аукцион автомобилей',
         description: 'Живые торги: ставки в реальном времени, проверенные авто, сопровождение сделки.',
         image: `${this.webOrigin()}/pwa-512.png`,
         url: `${this.webOrigin()}/`,
@@ -60,7 +60,7 @@ ${img}
     const web = this.webOrigin();
     try {
       const lot = await this.lots.byId(id, null);
-      const title = `${lot.make} ${lot.model}, ${lot.year} — Hermes Trade`;
+      const title = `${lot.make} ${lot.model}, ${lot.year} — Auction Germes`;
       const parts = [
         `${fmt(lot.currentPrice)} ₽`,
         `${fmt(lot.mileage)} км`,
@@ -78,7 +78,7 @@ ${img}
       // лот не найден/снят — отдаём дефолтную карточку и редирект на каталог
       res.send(
         this.page({
-          title: 'Hermes Trade — онлайн-аукцион автомобилей',
+          title: 'Auction Germes — онлайн-аукцион автомобилей',
           description: 'Живые торги автомобилей.',
           image: `${web}/pwa-512.png`,
           url: `${web}/`,

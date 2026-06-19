@@ -13,8 +13,8 @@ export default defineConfig({
       injectRegister: 'auto',
       devOptions: { enabled: false },
       manifest: {
-        name: 'Hermes Trade — автоаукцион',
-        short_name: 'Hermes Trade',
+        name: 'Auction Germes — автоаукцион',
+        short_name: 'Auction Germes',
         description: 'Онлайн-аукцион автомобилей: живые торги, ставки в реальном времени',
         lang: 'ru',
         start_url: '/',

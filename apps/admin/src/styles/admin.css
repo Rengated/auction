@@ -4,7 +4,7 @@
 :root{
   --bg:#f4f5f7; --panel:#ffffff; --panel2:#f3f4f6; --panel3:#eaecef;
   --ink:#16181d; --dim:#5c636e; --faint:#9097a1; --line:#e4e7ea; --line2:#d6dade;
-  --accent:#c9533c; --accent-soft:#f6e1db; --accent-deep:#a8412d;
+  --accent:#E0632B; --accent-soft:#fbe5d6; --accent-deep:#C44E1D;
   --ok:#2f9460; --ok-soft:#dcefe3; --live:#d8492f; --live-soft:#fae3de;
   --gold:#b6843a; --gold-soft:#f3e7cf;
   --ui:'Hanken Grotesk',system-ui,sans-serif; --num:'Space Grotesk',monospace;

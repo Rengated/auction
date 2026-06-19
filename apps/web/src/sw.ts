@@ -31,10 +31,10 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: 'Hermes Trade', body: event.data.text() };
+    payload = { title: 'Auction Germes', body: event.data.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? 'Hermes Trade', {
+    self.registration.showNotification(payload.title ?? 'Auction Germes', {
       body: payload.body,
       tag: payload.tag,
       icon: '/pwa-192.png',

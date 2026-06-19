@@ -121,7 +121,7 @@ export function Onboarding() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, color: 'var(--text)', fontWeight: 700 }}>
-          <HermesH size={20} color="var(--accent)" /> Hermes Trade
+          <HermesH size={20} color="var(--accent)" /> Auction Germes
         </span>
         <button
           onClick={finish}
