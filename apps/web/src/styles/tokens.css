@@ -411,6 +411,5 @@ button { font-family: var(--ui); }
   .web-auth-hero { display: none; }
 }
 
-/* Полноэкранный просмотр фото/видео лота (Carousel) */
-:fullscreen { width: 100%; height: 100%; background: #000; }
-:fullscreen::backdrop { background: #000; }
+/* Лайтбокс YARL поверх липкой шапки/нижней навигации */
+.yarl__root { z-index: 10000; }
