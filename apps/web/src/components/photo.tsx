@@ -132,13 +132,14 @@ export function Carousel({
   );
 
   return (
-    <div style={{ position: 'relative', ...style }}>
-      <div className="embla" ref={emblaRef} style={{ overflow: 'hidden', borderRadius: radius }}>
-        <div style={{ display: 'flex' }}>
+    <div style={{ position: 'relative', width: '100%', ...style }}>
+      {/* height: h фиксирует высоту вьюпорта — галерея не растягивается в широкой колонке десктопа */}
+      <div className="embla" ref={emblaRef} style={{ overflow: 'hidden', borderRadius: radius, width: '100%', height: h }}>
+        <div style={{ display: 'flex', height: '100%' }}>
           {photos.map((p, k) => (
-            <div key={p.id} style={{ flex: '0 0 100%', minWidth: 0 }}>
+            <div key={p.id} style={{ position: 'relative', flex: '0 0 100%', minWidth: 0, height: '100%' }}>
               {p.kind === 'video' ? (
-                <div className="photo" style={{ height: h, width: '100%' }}>
+                <div className="photo" style={{ height: '100%', width: '100%' }}>
                   <video
                     src={p.lg}
                     controls

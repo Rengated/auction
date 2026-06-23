@@ -34,12 +34,12 @@ export function cardPriceMeta(lot: LotDto, now: number) {
 
 export function ReserveInline({ lot }: { lot: LotDto }) {
   if (lot.status === 'sold') {
-    return <span className="num" style={{ fontSize: 11, fontWeight: 600, color: 'var(--win)' }}>✓ продан · резерв {fmt(lot.reservePrice)} ₽</span>;
+    return <span className="num" style={{ fontSize: 11, fontWeight: 600, color: 'var(--win)' }}>✓ продан · желаемая цена {fmt(lot.reservePrice)} ₽</span>;
   }
   return (
     <span className="num" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-faint)' }}>
-      резерв {fmt(lot.reservePrice)} ₽ ·{' '}
-      <span style={{ color: lot.reserveMet ? 'var(--ok)' : 'var(--text-dim)' }}>{lot.reserveMet ? 'взят' : 'не взят'}</span>
+      желаемая цена {fmt(lot.reservePrice)} ₽ ·{' '}
+      <span style={{ color: lot.reserveMet ? 'var(--ok)' : 'var(--text-dim)' }}>{lot.reserveMet ? 'достигнута' : 'не достигнута'}</span>
     </span>
   );
 }

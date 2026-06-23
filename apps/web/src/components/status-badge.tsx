@@ -21,6 +21,9 @@ export function StatusBadge({ lot }: { lot: LotDto }) {
     muted: { color: 'var(--text-dim)', bd: 'var(--line)', bg: 'color-mix(in srgb, var(--bg) 60%, transparent)' },
   };
   const s = styles[meta.tone];
+  // Клиент не видит слова «резерв»: завершённый без продажи → «Лот не сыгран»
+  // (shared STATUS_META не трогаем — там «Резерв не взят» для админки).
+  const label = ds === 'finished' ? 'Лот не сыгран' : meta.label;
   const css: CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10.5, fontWeight: 700,
     letterSpacing: '0.04em', textTransform: 'uppercase', color: s.color, background: s.bg,
@@ -29,7 +32,7 @@ export function StatusBadge({ lot }: { lot: LotDto }) {
   return (
     <span className="num" style={css}>
       {meta.tone === 'ok' && <Ic d={I.check} s={12} />}
-      {meta.label}
+      {label}
     </span>
   );
 }
