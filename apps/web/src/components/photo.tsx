@@ -68,18 +68,42 @@ export function Carousel({
 }) {
   const total = Math.max(1, photos.length);
   const slides = total;
-  // Полноэкранный просмотр фото/видео через браузерный Fullscreen API.
+  // Полноэкранный просмотр: нативный Fullscreen API там, где он есть (десктоп),
+  // иначе — собственный fixed-оверлей. iOS Safari (iPhone) не поддерживает
+  // requestFullscreen у элементов, поэтому без фолбэка кнопка там не работала.
   const rootRef = useRef<HTMLDivElement>(null);
-  const [isFs, setIsFs] = useState(false);
+  const [nativeFs, setNativeFs] = useState(false);
+  const [overlayFs, setOverlayFs] = useState(false);
+  const isFs = nativeFs || overlayFs;
   useEffect(() => {
-    const onChange = () => setIsFs(document.fullscreenElement === rootRef.current);
+    const onChange = () => setNativeFs(document.fullscreenElement === rootRef.current);
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
+  // Оверлей-фолбэк: блокируем прокрутку фона и закрываем по Esc.
+  useEffect(() => {
+    if (!overlayFs) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOverlayFs(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [overlayFs]);
   const toggleFs = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void rootRef.current?.requestFullscreen?.();
+    const el = rootRef.current;
+    const nativeOk = Boolean(el?.requestFullscreen) && Boolean(document.fullscreenEnabled);
+    if (nativeOk) {
+      if (document.fullscreenElement) void document.exitFullscreen();
+      else void el!.requestFullscreen();
+    } else {
+      setOverlayFs((v) => !v);
+    }
   };
   // Управляемый режим (index задан) или внутреннее состояние.
   const [inner, setInner] = useState(0);
@@ -141,6 +165,8 @@ export function Carousel({
         position: 'relative', touchAction: 'pan-y', cursor: slides > 1 ? 'grab' : undefined,
         ...(isFs ? { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' } : {}),
         ...style,
+        // iOS-фолбэк: сам становимся полноэкранным оверлеем (нативного fullscreen нет).
+        ...(overlayFs ? { position: 'fixed', inset: 0, width: '100vw', height: '100dvh', zIndex: 9999 } : {}),
       }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
