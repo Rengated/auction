@@ -157,16 +157,18 @@ export function LotsPage() {
                         {l.status === 'live' && (
                           <button className="iconbtn2" title="Контроль торга" onClick={() => navigate(`/auctions/${l.id}`)}>{AI.gavel}</button>
                         )}
-                        {l.status === 'finished' && !l.reserveMet && l.bidCount > 0 && (
-                          <button
-                            className="iconbtn2"
-                            title="Резерв не взят — участники и ставки (можно дозвониться)"
-                            onClick={() => navigate(`/auctions/${l.id}`)}
-                            style={{ color: 'var(--gold)', borderColor: 'color-mix(in srgb, var(--gold) 45%, var(--line2))' }}
-                          >
-                            {AI.users}
-                          </button>
-                        )}
+                        {(l.status === 'finished' || l.status === 'sold') &&
+                          l.bidCount > 0 &&
+                          (!l.dealStatus || l.dealStatus === 'cancelled') && (
+                            <button
+                              className="iconbtn2"
+                              title="Выбрать победителя — участники и ставки"
+                              onClick={() => navigate(`/auctions/${l.id}`)}
+                              style={{ color: 'var(--gold)', borderColor: 'color-mix(in srgb, var(--gold) 45%, var(--line2))' }}
+                            >
+                              {AI.users}
+                            </button>
+                          )}
                         {(l.status === 'finished' || l.status === 'withdrawn') && (
                           <button
                             className="iconbtn2"

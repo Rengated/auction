@@ -111,7 +111,7 @@ export class AdminLotsController {
     const [lots, total] = await this.prisma.$transaction([
       this.prisma.lot.findMany({
         where,
-        include: { photos: true },
+        include: { photos: true, deal: { select: { status: true, winnerUserId: true } } },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,

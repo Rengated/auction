@@ -140,6 +140,11 @@ export class AdminDealsController {
       } else if (before.status === 'delivered') {
         await this.lifecycle.cancelMediaPurge(deal.lot.id);
       }
+      // Отмена сделки без победителя — лот больше не продан: возвращаем sold → finished,
+      // чтобы можно было снова выбрать победителя из участников (вход в Контроль).
+      if (deal.status === 'cancelled') {
+        await this.prisma.lot.updateMany({ where: { id: deal.lot.id, status: 'sold' }, data: { status: 'finished' } });
+      }
     }
     return dealToDto(deal);
   }

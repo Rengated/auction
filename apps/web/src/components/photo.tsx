@@ -129,8 +129,8 @@ export function Carousel({
   const isVideo = cur?.kind === 'video';
   // В полноэкранном режиме показываем целиком (contain), вне — как было (cover).
   const fsBtn: CSSProperties = {
-    position: 'absolute', top: 12, right: 12, zIndex: 5,
-    width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--line)',
+    position: 'absolute', bottom: 11, right: 11, zIndex: 6,
+    width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--line)',
     background: 'color-mix(in srgb, var(--bg) 55%, transparent)', backdropFilter: 'blur(6px)',
     color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 9,
   };

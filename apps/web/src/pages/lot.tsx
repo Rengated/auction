@@ -224,7 +224,7 @@ function ScreenLot({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
       <div className="body">
         <div style={{ position: 'relative' }}>
           <Carousel photos={lot.photos} h={264} glyph={lot.make.toUpperCase()} size="md" />
-          <div style={{ position: 'absolute', bottom: 11, right: 11, zIndex: 5 }}><StatusBadge lot={lot} /></div>
+          <div style={{ position: 'absolute', bottom: 11, right: 56, zIndex: 5 }}><StatusBadge lot={lot} /></div>
         </div>
 
         <div style={{ padding: '16px 18px 0' }}>
