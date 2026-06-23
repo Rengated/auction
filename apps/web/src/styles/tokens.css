@@ -412,4 +412,20 @@ button { font-family: var(--ui); }
 }
 
 /* Лайтбокс YARL поверх липкой шапки/нижней навигации */
-.yarl__root { z-index: 10000; }
+.yarl__root {
+  z-index: 10000;
+  /* PWA/notch: учитываем безопасные зоны, чтобы тулбар с крестиком и счётчик
+     не уезжали под статус-бар/часы (контент тянется под них из-за black-translucent). */
+  --yarl__safe_top: env(safe-area-inset-top, 0px);
+  --yarl__safe_right: env(safe-area-inset-right, 0px);
+  --yarl__safe_left: env(safe-area-inset-left, 0px);
+  --yarl__safe_bottom: env(safe-area-inset-bottom, 0px);
+}
+.yarl__root .yarl__toolbar {
+  top: var(--yarl__safe_top);
+  right: var(--yarl__safe_right);
+}
+.yarl__root .yarl__counter {
+  top: var(--yarl__safe_top);
+  left: var(--yarl__safe_left);
+}
