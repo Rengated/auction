@@ -366,8 +366,8 @@ button { font-family: var(--ui); }
   overflow: hidden; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; text-align: left; padding: 0; }
 .wcard:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--line); }
 
-.lot-grid { display: grid; grid-template-columns: 1fr 380px; gap: 32px; align-items: start; padding-bottom: 72px; }
-@media (max-width: 1100px) { .lot-grid { grid-template-columns: 1fr; } }
+.lot-grid { display: grid; grid-template-columns: 70% 380px; gap: 32px; align-items: start; padding-bottom: 72px; }
+@media (max-width: 1100px) { .lot-grid { grid-template-columns: 100%; } }
 
 .gallery-main { border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line-soft); }
 .thumbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 12px; }
