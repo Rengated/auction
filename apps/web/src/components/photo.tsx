@@ -1,5 +1,6 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { LotPhotoDto } from '@hermes/shared';
+import { I } from './icons';
 
 /** Фото с фолбэком на глиф-плейсхолдер (как в прототипе). */
 export function Photo({
@@ -67,6 +68,19 @@ export function Carousel({
 }) {
   const total = Math.max(1, photos.length);
   const slides = total;
+  // Полноэкранный просмотр фото/видео через браузерный Fullscreen API.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [isFs, setIsFs] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFs(document.fullscreenElement === rootRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFs = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void rootRef.current?.requestFullscreen?.();
+  };
   // Управляемый режим (index задан) или внутреннее состояние.
   const [inner, setInner] = useState(0);
   const i = index ?? inner;
@@ -113,29 +127,50 @@ export function Carousel({
   });
   const cur = photos[i];
   const isVideo = cur?.kind === 'video';
+  // В полноэкранном режиме показываем целиком (contain), вне — как было (cover).
+  const fsBtn: CSSProperties = {
+    position: 'absolute', top: 12, right: 12, zIndex: 5,
+    width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--line)',
+    background: 'color-mix(in srgb, var(--bg) 55%, transparent)', backdropFilter: 'blur(6px)',
+    color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 9,
+  };
   return (
     <div
-      style={{ position: 'relative', touchAction: 'pan-y', cursor: slides > 1 ? 'grab' : undefined, ...style }}
+      ref={rootRef}
+      style={{
+        position: 'relative', touchAction: 'pan-y', cursor: slides > 1 ? 'grab' : undefined,
+        ...(isFs ? { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' } : {}),
+        ...style,
+      }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
     >
       {isVideo ? (
-        <div className="photo" style={{ height: h, borderRadius: radius }}>
+        <div className="photo" style={{ height: isFs ? '100%' : h, borderRadius: isFs ? 0 : radius, width: '100%' }}>
           <video
             key={cur.id}
             src={cur.lg}
             controls
             playsInline
             preload="metadata"
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: isFs ? 'contain' : 'cover', zIndex: 1 }}
           />
           <span className="cap" style={{ zIndex: 2 }}>{i + 1} / {total}</span>
         </div>
+      ) : isFs ? (
+        <img
+          src={cur ? cur.lg : undefined}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+        />
       ) : (
         <Photo src={cur ? cur[size] : null} h={h} glyph={cur ? glyph : `ФОТО ${i + 1}`} fit="cover" priority cap={`${i + 1} / ${total}`} style={{ borderRadius: radius }} />
       )}
+      <button style={fsBtn} title={isFs ? 'Свернуть' : 'На весь экран'} onClick={toggleFs}>
+        <span style={{ width: 18, height: 18, display: 'inline-flex' }}>{isFs ? I.minimize : I.expand}</span>
+      </button>
       {slides > 1 && (
         <>
           <button style={arrow('left')} onClick={(e) => go(-1, e)}>‹</button>

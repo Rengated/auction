@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { HttpStatus, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { ConflictException, HttpStatus, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { ERROR_CODES, WS_EVENTS, type LotStatusEvent } from '@hermes/shared';
@@ -15,7 +15,6 @@ import { lotToTick } from '../lots/lot.mapper';
 export const AUCTION_QUEUE = 'auction';
 const SWEEP_INTERVAL_MS = 30_000;
 const ENDING_SOON_MS = 5 * 60_000;
-const START_SOON_MS = 15 * 60_000;
 /** Через сколько после выдачи (delivered) очищать медиа лота. */
 const MEDIA_PURGE_MS = 7 * 24 * 60 * 60_000;
 
@@ -77,16 +76,6 @@ export class LifecycleService implements OnModuleInit {
       { lotId },
       { jobId, delay: Math.max(0, startsAt.getTime() - Date.now()), removeOnComplete: true, removeOnFail: true },
     );
-    // «Скоро старт по избранному» — за 15 минут (только если старт ещё дальше)
-    const soonDelay = startsAt.getTime() - START_SOON_MS - Date.now();
-    await this.queue.remove(`start-soon-${lotId}`).catch(() => undefined);
-    if (soonDelay > 0) {
-      await this.queue.add(
-        'start-soon',
-        { lotId },
-        { jobId: `start-soon-${lotId}`, delay: soonDelay, removeOnComplete: true, removeOnFail: true },
-      );
-    }
   }
 
   async scheduleClose(lotId: string, endsAt: Date): Promise<void> {
@@ -122,23 +111,10 @@ export class LifecycleService implements OnModuleInit {
     });
   }
 
-  /** «Скоро старт» — только подписавшимся на лот (избранное). */
-  async notifyStartingSoon(lotId: string): Promise<void> {
-    const lot = await this.prisma.lot.findUnique({ where: { id: lotId } });
-    if (!lot || lot.status !== 'upcoming' || !lot.published) return;
-    const favs = await this.prisma.favorite.findMany({ where: { lotId }, select: { userId: true } });
-    await this.notifications.notifyMany(
-      favs.map((f) => f.userId),
-      'lot_starting',
-      { lotId, lotTitle: `${lot.make} ${lot.model}`, startsAt: lot.startsAt.toISOString(), phase: 'soon' },
-    );
-  }
-
   async cancelJobs(lotId: string): Promise<void> {
     await this.queue.remove(`open-${lotId}`).catch(() => undefined);
     await this.queue.remove(`close-${lotId}`).catch(() => undefined);
     await this.queue.remove(`ending-${lotId}`).catch(() => undefined);
-    await this.queue.remove(`start-soon-${lotId}`).catch(() => undefined);
   }
 
   /** Планирует очистку медиа лота через неделю после выдачи (от deliveredAt). */
@@ -184,6 +160,15 @@ export class LifecycleService implements OnModuleInit {
     await this.media.purgeLotMedia({ photos: lot.photos, autotekaPdfKey: lot.autotekaPdfKey });
     await this.prisma.lot.update({ where: { id: lotId }, data: { mediaPurgedAt: new Date() } });
     this.logger.log(`Lot ${lotId} media purged`);
+  }
+
+  /** Все активные покупатели — для обязательного уведомления о старте лота. */
+  private async allActiveUserIds(): Promise<string[]> {
+    const users = await this.prisma.user.findMany({
+      where: { role: 'buyer', archivedAt: null },
+      select: { id: true },
+    });
+    return users.map((u) => u.id);
   }
 
   /** Аудитория лота: участники торгов + добавившие в избранное. */
@@ -239,10 +224,10 @@ export class LifecycleService implements OnModuleInit {
     const event: LotStatusEvent = { lot: lotToTick(opened) };
     this.broadcastStatus(lotId, event);
 
-    // «Старт торгов по избранному»
-    const favs = await this.prisma.favorite.findMany({ where: { lotId }, select: { userId: true } });
+    // Старт торгов — уведомление всем активным пользователям (личные настройки
+    // и глобальный тоггл lot_starting по-прежнему учитываются в notifyMany).
     await this.notifications.notifyMany(
-      favs.map((f) => f.userId),
+      await this.allActiveUserIds(),
       'lot_starting',
       { lotId, lotTitle: `${opened.make} ${opened.model}`, startsAt: opened.startsAt.toISOString(), phase: 'live' },
     );
@@ -314,6 +299,72 @@ export class LifecycleService implements OnModuleInit {
     }
     void this.telegram.announceLot(result.deal ? 'sold' : 'finished', lotId, { finalPrice: result.finalPrice });
     this.logger.log(`Lot ${lotId} closed → ${result.updated.status}`);
+  }
+
+  /**
+   * Ручное назначение победителя менеджером для завершённого лота (резерв не взят
+   * или прежний победитель отказался). Создаёт сделку по макс. ставке участника
+   * либо перезаписывает отменённую (Deal.lotId @unique — одна сделка на лот),
+   * переводит лот в sold и уведомляет нового победителя.
+   */
+  async chooseWinner(lotId: string, winnerUserId: string, actorUserId: string): Promise<void> {
+    const settings = await this.settings.get();
+    const result = await this.prisma.$transaction(async (tx) => {
+      const lot = await this.lockLot(tx, lotId);
+      if (!lot) throw new NotFoundException();
+      if (lot.status !== 'finished' && lot.status !== 'sold') {
+        throw new ConflictException('Лот не завершён');
+      }
+
+      const winningBid = await tx.bid.findFirst({
+        where: { lotId, userId: winnerUserId, rejectedAt: null },
+        orderBy: { amount: 'desc' },
+      });
+      if (!winningBid) {
+        throw new ConflictException('У участника нет активных ставок');
+      }
+
+      const existing = await tx.deal.findUnique({ where: { lotId } });
+      if (existing && existing.status !== 'cancelled') {
+        throw new ConflictException('По лоту уже есть активная сделка — сначала отмените её');
+      }
+
+      const effFeeRate = lot.fee_rate != null ? Number(lot.fee_rate) : Number(settings.feeRate);
+      const feeAmount = BigInt(Math.round(Number(winningBid.amount) * effFeeRate));
+      const dealData = {
+        winnerUserId,
+        winningBidId: winningBid.id,
+        amount: winningBid.amount,
+        feeRate: effFeeRate,
+        feeAmount,
+        status: 'won' as const,
+        managerId: actorUserId,
+        note: '',
+        closedAt: null,
+      };
+      const deal = existing
+        ? await tx.deal.update({ where: { id: existing.id }, data: dealData })
+        : await tx.deal.create({ data: { lotId, ...dealData } });
+
+      const updated = await tx.lot.update({ where: { id: lotId }, data: { status: 'sold' } });
+      await tx.auctionEvent.create({
+        data: {
+          lotId,
+          type: 'closed',
+          actorUserId,
+          payload: { status: 'sold', manual: true, chosenWinner: true, finalPrice: Number(winningBid.amount) },
+        },
+      });
+      return { updated, deal, finalPrice: Number(winningBid.amount), title: `${lot.make} ${lot.model}` };
+    });
+
+    const event: LotStatusEvent = { lot: lotToTick(result.updated), finalPrice: result.finalPrice };
+    this.broadcastStatus(lotId, event);
+
+    const won = { lotId, lotTitle: result.title, amount: result.finalPrice, dealId: result.deal.id };
+    this.realtime.toUser(result.deal.winnerUserId, WS_EVENTS.LOT_WON, won);
+    await this.notifications.notify(result.deal.winnerUserId, 'won', won);
+    this.logger.log(`Lot ${lotId} winner chosen manually → deal ${result.deal.id}`);
   }
 
   /** Ручное продление торгов менеджером (+30/+60 сек из AuctionControl). */

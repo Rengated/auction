@@ -28,6 +28,10 @@ export type AdminLot = LotDto & {
   autotekaPdfAttached: boolean;
   /** Лот в архиве (скрыт из каталога и основных вкладок). */
   archived: boolean;
+  /** Статус сделки лота (для ручного выбора победителя); null — сделки нет. */
+  dealStatus: DealStatus | null;
+  /** Текущий победитель/сделка лота; null — нет. */
+  dealWinnerUserId: string | null;
 };
 
 /** Адрес из справочника (точка осмотра/выдачи). */
@@ -374,6 +378,7 @@ export function useAuctionAction(lotId: string) {
     | { action: 'reject-last-bid' }
     | { action: 'reject-bid'; bidId: string }
     | { action: 'start-now' }
+    | { action: 'choose-winner'; userId: string }
     | { action: 'step'; step: number }
   >({
     mutationFn: (v) =>
@@ -381,11 +386,15 @@ export function useAuctionAction(lotId: string) {
         ? patch(`/admin/lots/${lotId}/step`, { step: v.step })
         : v.action === 'reject-bid'
           ? post(`/admin/lots/${lotId}/bids/${v.bidId}/reject`)
-          : post(`/admin/lots/${lotId}/${v.action}`, v.action === 'extend' ? { seconds: v.seconds } : undefined),
+          : v.action === 'choose-winner'
+            ? post(`/admin/lots/${lotId}/choose-winner`, { userId: v.userId })
+            : post(`/admin/lots/${lotId}/${v.action}`, v.action === 'extend' ? { seconds: v.seconds } : undefined),
     onSuccess: () => {
       invalidateLots(qc);
       qc.invalidateQueries({ queryKey: ['admin-feed', lotId] });
       qc.invalidateQueries({ queryKey: ['participants', lotId] });
+      qc.invalidateQueries({ queryKey: ['admin-lot', lotId] });
+      qc.invalidateQueries({ queryKey: ['deals'] });
     },
   });
 }

@@ -87,7 +87,6 @@ function BidPanel({ lot }: { lot: LotDto }) {
   const bf = useBidForm(lot);
   const { data: cfg } = useConfig();
   const feeRate = lot.feeRate ?? cfg?.feeRate ?? 0.015;
-  const [remind, setRemind] = useState(false);
   const ds = displayStatus(lot.status, lot.endsAt, now);
   const group = STATUS_META[ds].group;
   const left = leftSec(lot.endsAt, now);
@@ -128,11 +127,9 @@ function BidPanel({ lot }: { lot: LotDto }) {
             <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 15, marginTop: 4 }}>{fmtTime(startsLeft)}</div>
           </div>
         </div>
-        <button className="btn accent block" onClick={() => setRemind(true)}>
-          {remind
-            ? <span style={{ display: 'inline-flex', gap: 7, alignItems: 'center' }}><Ic d={I.check} s={16} /> Напомним о старте</span>
-            : 'Напомнить о старте'}
-        </button>
+        <div className="num" style={{ display: 'flex', gap: 7, alignItems: 'center', justifyContent: 'center', padding: '12px', borderRadius: 9, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', color: 'var(--text-dim)', fontSize: 12.5 }}>
+          <Ic d={I.clock} s={15} /> Торги ещё не начались
+        </div>
       </div>
     );
   }
@@ -316,7 +313,6 @@ function WebBidBox({ lot }: { lot: LotDto }) {
   const bf = useBidForm(lot);
   const { data: cfg } = useConfig();
   const feeRate = lot.feeRate ?? cfg?.feeRate ?? 0.015;
-  const [remind, setRemind] = useState(false);
   const ds = displayStatus(lot.status, lot.endsAt, now);
   const group = STATUS_META[ds].group;
   const left = leftSec(lot.endsAt, now);
@@ -381,9 +377,9 @@ function WebBidBox({ lot }: { lot: LotDto }) {
       )}
 
       {group === 'soon' && (
-        <button className="wbtn accent" style={{ width: '100%', justifyContent: 'center', padding: '15px' }} onClick={() => setRemind(true)}>
-          {remind ? <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><Ic d={I.check} /> Напомним о старте</span> : 'Напомнить о старте'}
-        </button>
+        <div className="num" style={{ display: 'flex', gap: 9, alignItems: 'center', justifyContent: 'center', padding: '14px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--line-soft)', color: 'var(--text-dim)', fontSize: 13 }}>
+          <Ic d={I.clock} s={16} /> Торги ещё не начались — старт через {fmtTime(startsLeft)}
+        </div>
       )}
 
       {group === 'done' && (

@@ -39,6 +39,9 @@ export function AuctionControlPage() {
   const isLive = lot.status === 'live';
   const participants = Math.max(1, Math.round(lot.bidCount * 0.6));
   const busy = action.isPending;
+  // Ручной выбор победителя: лот завершён и нет активной (не отменённой) сделки.
+  const hasActiveDeal = Boolean(lot.dealStatus && lot.dealStatus !== 'cancelled');
+  const canChooseWinner = (lot.status === 'finished' || lot.status === 'sold') && !hasActiveDeal;
 
   return (
     <div className="content fade">
@@ -208,6 +211,9 @@ export function AuctionControlPage() {
                           <div className="nm" style={{ font: '600 13px/1 var(--ui)' }}>
                             {p.name}
                             {p.isLeader && <span className="num" style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 7 }}>ЛИДЕР</span>}
+                            {hasActiveDeal && p.userId === lot.dealWinnerUserId && (
+                              <span className="num" style={{ fontSize: 10, color: 'var(--ok)', marginLeft: 7 }}>ПОБЕДИТЕЛЬ</span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -217,7 +223,20 @@ export function AuctionControlPage() {
                       </td>
                       <td className="num" style={{ fontWeight: 600 }}>{fmt(p.maxBid)} ₽</td>
                       <td>
-                        <div className="row-actions">
+                        <div className="row-actions" style={{ alignItems: 'center' }}>
+                          {canChooseWinner && (
+                            <button
+                              className="btn sm"
+                              disabled={busy}
+                              title="Создать сделку с этим участником"
+                              onClick={() =>
+                                window.confirm(`Выбрать ${p.name} победителем? Будет создана сделка на ${fmt(p.maxBid)} ₽.`) &&
+                                action.mutate({ action: 'choose-winner', userId: p.userId })
+                              }
+                            >
+                              <Ic d={AI.check} s={15} /> Выбрать победителем
+                            </button>
+                          )}
                           {p.phone && (
                             <a className="iconbtn2" title="Позвонить" href={`tel:${p.phone.replace(/\s/g, '')}`} style={{ textDecoration: 'none' }}>
                               {AI.phone}

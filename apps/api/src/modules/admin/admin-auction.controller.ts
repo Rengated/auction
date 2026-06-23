@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsUUID, Max, Min } from 'class-validator';
 import { CurrentUser, Roles, STAFF, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LifecycleService } from '../auction-engine/lifecycle.service';
@@ -10,6 +10,10 @@ class ExtendDto {
 
 class StepDto {
   @IsInt() @Min(1000) step!: number;
+}
+
+class ChooseWinnerDto {
+  @IsUUID() userId!: string;
 }
 
 @Roles(...STAFF)
@@ -60,6 +64,17 @@ export class AdminAuctionController {
   async startNow(@Param('id', ParseUUIDPipe) id: string) {
     await this.prisma.lot.updateMany({ where: { id, status: 'upcoming' }, data: { startsAt: new Date() } });
     await this.lifecycle.openLot(id);
+    return { ok: true };
+  }
+
+  /** Ручное назначение победителя завершённого лота (резерв не взят / отказ победителя). */
+  @Post('choose-winner')
+  async chooseWinner(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChooseWinnerDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    await this.lifecycle.chooseWinner(id, dto.userId, user!.id);
     return { ok: true };
   }
 

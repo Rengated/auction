@@ -17,7 +17,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { Prisma } from '@prisma/client';
+import { Prisma, type DealStatus } from '@prisma/client';
 import {
   IsArray,
   IsBoolean,
@@ -124,7 +124,10 @@ export class AdminLotsController {
 
   @Get(':id')
   async byId(@Param('id', ParseUUIDPipe) id: string) {
-    const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
+    const lot = await this.prisma.lot.findUnique({
+      where: { id },
+      include: { photos: true, deal: { select: { status: true, winnerUserId: true } } },
+    });
     if (!lot) throw new NotFoundException();
     const defaults = await this.settings.lotDefaults();
     return this.toAdminDto(lot, defaults);
@@ -330,7 +333,9 @@ export class AdminLotsController {
   }
 
   private toAdminDto(
-    lot: Prisma.LotGetPayload<{ include: { photos: true } }>,
+    lot: Prisma.LotGetPayload<{ include: { photos: true } }> & {
+      deal?: { status: DealStatus; winnerUserId: string } | null;
+    },
     defaults: { bidStep: number; feeRate: number },
   ) {
     return {
@@ -344,6 +349,10 @@ export class AdminLotsController {
       /** Загружен ли PDF-файл (в отличие от внешней ссылки) */
       autotekaPdfAttached: Boolean(lot.autotekaPdfKey),
       archived: Boolean(lot.archivedAt),
+      /** Статус сделки лота (для ручного выбора победителя); null — сделки нет. */
+      dealStatus: lot.deal?.status ?? null,
+      /** Текущий победитель/сделка лота; null — нет. */
+      dealWinnerUserId: lot.deal?.winnerUserId ?? null,
     };
   }
 
