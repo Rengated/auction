@@ -440,7 +440,7 @@ function ManagerBlock({ mobile }: { mobile: boolean }) {
         <div style={{ width: mobile ? 54 : 56, height: mobile ? 54 : 56, borderRadius: '50%', background: 'var(--surface-2)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', font: '700 18px/1 var(--num)', color: 'var(--accent)', flex: 'none' }}>{initial}</div>
         <div>
           <div style={{ font: `700 ${mobile ? 16 : 17}px/1.2 var(--ui)` }}>{title}</div>
-          <div className="num" style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 6 }}>на связи 9:00–21:00 МСК</div>
+          <div className="num" style={{ fontSize: mobile ? 12 : 12.5, color: 'var(--text-dim)', marginTop: 6 }}>на связи 9:00–20:00 МСК</div>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 14 }}>
@@ -458,7 +458,7 @@ function ManagerBlock({ mobile }: { mobile: boolean }) {
       <div className="card" style={{ marginTop: 16, padding: mobile ? '14px 16px' : '16px 18px' }}>
         <div className={mobile ? 'eyebrow' : 'eyebrow-w'} style={{ marginBottom: mobile ? 9 : 12 }}>чем помогает</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: mobile ? 9 : 10 }}>
-          {['Оформление сделки и комиссии после победы', 'Осмотр и проверка автомобиля', 'Доставка в ваш город', 'Вопросы по лотам и ставкам'].map((x) => (
+          {['Оформление сделки и комиссии после победы', 'Осмотр и проверка автомобиля', 'Вопросы по лотам и ставкам'].map((x) => (
             <div key={x} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: mobile ? 13 : 13.5, color: 'var(--text-dim)' }}>
               <span style={{ width: 15, height: 15, color: 'var(--ok)', flex: 'none' }}>{I.check}</span>{x}
             </div>

@@ -72,7 +72,7 @@ body {
 button { font-family: var(--ui); }
 
 /* ---------- мобильная оболочка ------------------------------ */
-.mshell { height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.mshell { height: 100dvh; display: flex; flex-direction: column; background: var(--bg); padding-top: env(safe-area-inset-top); box-sizing: border-box; }
 .screen { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--bg); position: relative; }
 
 .body {
