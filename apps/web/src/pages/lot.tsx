@@ -1,5 +1,5 @@
 /* Страница лота: мобильный экран (ScreenLot) и веб-раскладка (LotView) — 1:1 из дизайна. */
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   displayStatus,
@@ -395,10 +395,16 @@ function WebBidBox({ lot }: { lot: LotDto }) {
 function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
   const navigate = useNavigate();
   const now = useNow();
+  const fav = useToggleFavorite();
   const [tab, setTab] = useState('Обзор');
   const [photoIdx, setPhotoIdx] = useState(0);
   const tabs = ['Обзор', 'Характеристики', 'Описание'];
   const live = STATUS_META[displayStatus(lot.status, lot.endsAt, now)].group === 'live';
+  const galBtn: CSSProperties = {
+    width: 38, height: 38, borderRadius: '50%', border: '1px solid var(--line)',
+    background: 'color-mix(in srgb, var(--bg) 55%, transparent)', backdropFilter: 'blur(6px)',
+    color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 9,
+  };
 
   return (
     <div className="wrap viewfade">
@@ -416,8 +422,20 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
 
       <div className="lot-grid">
         <div>
-          <div className="gallery-main">
+          <div className="gallery-main" style={{ position: 'relative' }}>
             <Carousel photos={lot.photos} h={420} glyph={lot.make.toUpperCase()} size="lg" index={Math.min(photoIdx, Math.max(0, lot.photos.length - 1))} onIndex={setPhotoIdx} />
+            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 6, display: 'flex', gap: 8 }}>
+              <button style={galBtn} title="Поделиться" onClick={() => void shareLot(lot)}>
+                <span style={{ width: 18, height: 18, display: 'inline-flex' }}>{I.share}</span>
+              </button>
+              <button
+                style={{ ...galBtn, color: lot.isFavorite ? 'var(--accent)' : 'var(--text)' }}
+                title={lot.isFavorite ? 'В избранном' : 'В избранное'}
+                onClick={() => fav.mutate({ lotId: lot.id, on: !lot.isFavorite })}
+              >
+                <span style={{ width: 18, height: 18, display: 'inline-flex' }}>{I.bookmark}</span>
+              </button>
+            </div>
           </div>
           {lot.mediaPurged && lot.photos.length === 0 && (
             <div className="num" style={{ fontSize: 12, color: 'var(--text-dim)', margin: '8px 2px 0' }}>
