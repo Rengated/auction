@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from '@nestjs/common';
 import * as tls from 'tls';
 import { Agent, ProxyAgent, type Dispatcher } from 'undici';
 import { SocksClient } from 'socks';
@@ -6,8 +6,23 @@ import sharp from 'sharp';
 import { fmt } from '@hermes/shared';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { MetricsService } from './metrics.service';
 
 export type TgLotEvent = 'published' | 'opened' | 'sold' | 'finished' | 'withdrawn';
+
+/** Информация о попытке входа персонала для Telegram-алерта. */
+export interface StaffLoginInfo {
+  ok: boolean;
+  username: string;
+  role?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+interface TgUpdate {
+  update_id: number;
+  message?: { text?: string; chat?: { id: number } };
+}
 
 /**
  * Броадкаст событий лотов в Telegram-канал через Bot API.
@@ -19,16 +34,162 @@ export type TgLotEvent = 'published' | 'opened' | 'sold' | 'finished' | 'withdra
  * (с логином: scheme://user:pass@host:port).
  */
 @Injectable()
-export class TelegramService {
+export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
   /** Диспетчер прокси — собирается один раз из env (null = прямое соединение). */
   private proxyDispatcher: Dispatcher | null = null;
   private proxyResolved = false;
 
+  // ── Состояние long-polling команд бота ──
+  private polling = false;
+  private pollOffset = 0;
+  private pollAbort: AbortController | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    private readonly metrics: MetricsService,
   ) {}
+
+  /** ID чатов админов (адресаты алертов и единственные авторизованные для команд). */
+  private get adminChatIds(): string[] {
+    return (process.env.TELEGRAM_ADMIN_CHAT_ID ?? '441931183')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  onModuleInit(): void {
+    // В тестах и при явном выключении не поллим (один инстанс должен держать getUpdates).
+    if (process.env.TELEGRAM_BOT_POLLING === '0' || process.env.NODE_ENV === 'test') return;
+    this.polling = true;
+    void this.pollLoop();
+  }
+
+  onModuleDestroy(): void {
+    this.polling = false;
+    this.pollAbort?.abort();
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+  }
+
+  /** Алерт о входе персонала (успех/неудача) всем админам. Fire-and-forget, не бросает. */
+  async notifyStaffLogin(info: StaffLoginInfo): Promise<void> {
+    try {
+      const token = (await this.settings.get()).telegramBotToken.trim();
+      const ids = this.adminChatIds;
+      if (!token || !ids.length) return;
+      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const when = new Date().toLocaleString('ru-RU', {
+        timeZone: 'Europe/Moscow',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const lines = [
+        info.ok ? '✅ <b>Вход в админку</b>' : '⛔️ <b>Неудачная попытка входа</b>',
+        `Логин: <code>${esc(info.username)}</code>`,
+        ...(info.ok && info.role ? [`Роль: ${esc(info.role)}`] : []),
+        `IP: <code>${esc(info.ip ?? '—')}</code>`,
+        `UA: ${info.userAgent ? esc(info.userAgent.slice(0, 120)) : '—'}`,
+        `Время: ${when} (МСК)`,
+      ];
+      const text = lines.join('\n');
+      for (const chatId of ids) {
+        await this.api(token, 'sendMessage', {
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+        });
+      }
+    } catch (e) {
+      this.logger.warn(`notifyStaffLogin failed: ${(e as Error).message}`);
+    }
+  }
+
+  /** Цикл long-polling: читает токен из настроек, тянет апдейты, диспетчеризует команды. */
+  private async pollLoop(): Promise<void> {
+    while (this.polling) {
+      let token = '';
+      try {
+        token = (await this.settings.get()).telegramBotToken.trim();
+      } catch {
+        /* настройки недоступны — повторим позже */
+      }
+      if (!token) {
+        await this.sleep(15_000);
+        continue;
+      }
+      try {
+        const updates = await this.getUpdates(token, this.pollOffset);
+        for (const u of updates) {
+          this.pollOffset = u.update_id + 1;
+          await this.handleUpdate(token, u).catch((e) =>
+            this.logger.warn(`handleUpdate failed: ${(e as Error).message}`),
+          );
+        }
+      } catch (e) {
+        if (this.polling) {
+          this.logger.warn(`getUpdates failed: ${(e as Error).message}`);
+          await this.sleep(5_000);
+        }
+      }
+    }
+  }
+
+  /** Long-poll getUpdates (только message-апдейты). Прерывается на остановке/таймауте. */
+  private async getUpdates(token: string, offset: number): Promise<TgUpdate[]> {
+    const dispatcher = this.getDispatcher();
+    this.pollAbort = new AbortController();
+    // Останов сервиса или 35с без ответа (сеть) → прерываем висящий long-poll.
+    const signal = AbortSignal.any([this.pollAbort.signal, AbortSignal.timeout(35_000)]);
+    const url =
+      `https://api.telegram.org/bot${token}/getUpdates` +
+      `?timeout=30&offset=${offset}&allowed_updates=${encodeURIComponent('["message"]')}`;
+    const res = await fetch(url, {
+      signal,
+      ...(dispatcher ? { dispatcher } : {}),
+    } as RequestInit);
+    if (!res.ok) throw new Error(`getUpdates → ${res.status}`);
+    const data = (await res.json()) as { ok: boolean; result?: TgUpdate[] };
+    return data.result ?? [];
+  }
+
+  /** Обработка одного апдейта: только от админов, команды /status и /help. */
+  private async handleUpdate(token: string, u: TgUpdate): Promise<void> {
+    const msg = u.message;
+    if (!msg?.text || !msg.chat) return;
+    const chatId = String(msg.chat.id);
+    if (!this.adminChatIds.includes(chatId)) return; // чужие — молча игнорируем
+    const cmd = msg.text.trim().split(/\s+/)[0].toLowerCase().replace(/@.*$/, '');
+    if (cmd === '/status') {
+      const text = await this.metrics.buildStatusMessage();
+      await this.api(token, 'sendMessage', {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true },
+      });
+    } else if (cmd === '/start' || cmd === '/help') {
+      await this.api(token, 'sendMessage', {
+        chat_id: chatId,
+        text: 'Команды:\n/status — статус сервера (ресурсы, инфраструктура, аукцион)',
+        parse_mode: 'HTML',
+      });
+    }
+  }
+
+  /** setTimeout-пауза с unref, чтобы не держать event loop (важно для тестов/shutdown). */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.pollTimer = setTimeout(resolve, ms);
+      this.pollTimer.unref?.();
+    });
+  }
 
   /** Ленивая инициализация прокси из TELEGRAM_PROXY по схеме URL. */
   private getDispatcher(): Dispatcher | undefined {

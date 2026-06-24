@@ -25,7 +25,7 @@ pnpm dev                        # api + web + admin параллельно
 ```
 
 - Клиент: http://localhost:5173 · Админка: http://localhost:5174
-- Без ключей Яндекса работает **dev-вход** (`AUTH_DEV_FAKE=1`): кнопка «Войти через Яндекс ID» откроет страницу выбора сид-пользователя. Менеджер — `dev-manager`, покупатели — `dev-1…8`, без контактов — `dev-nocontacts`.
+- Вход покупателя — через Яндекс OAuth (нужны `YANDEX_CLIENT_ID/SECRET`). Вход персонала (admin/manager) — по логину и паролю на `/auth/login`; создать учётку: `pnpm --filter @hermes/api create-admin`.
 - `pnpm db:reset` — полный сброс БД с пересевом (живые лоты получают свежие таймеры).
 
 ## Тесты

@@ -25,4 +25,9 @@ export class RealtimeService {
   toAdmin(event: string, payload: unknown): void {
     this.server?.to('admin').emit(event, payload);
   }
+
+  /** Число активных socket.io-соединений на этом инстансе (для метрик/статуса бота). */
+  connectedCount(): number {
+    return this.server?.engine?.clientsCount ?? 0;
+  }
 }

@@ -8,10 +8,6 @@ export class YandexService {
     return Boolean(process.env.YANDEX_CLIENT_ID && process.env.YANDEX_CLIENT_SECRET);
   }
 
-  get devFake(): boolean {
-    return process.env.AUTH_DEV_FAKE === '1';
-  }
-
   /** Точный redirect_uri — должен совпадать в authorize и token и в настройках приложения. */
   callbackUrl(): string {
     const api = (process.env.API_PUBLIC_URL ?? 'http://localhost:3000').replace(/\/$/, '');

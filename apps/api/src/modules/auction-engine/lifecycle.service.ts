@@ -11,8 +11,9 @@ import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { MediaService } from '../admin/media.service';
 import { lotToTick } from '../lots/lot.mapper';
+import { AUCTION_QUEUE } from './auction.constants';
 
-export const AUCTION_QUEUE = 'auction';
+export { AUCTION_QUEUE };
 const SWEEP_INTERVAL_MS = 30_000;
 const ENDING_SOON_MS = 5 * 60_000;
 /** Через сколько после выдачи (delivered) очищать медиа лота. */

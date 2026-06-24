@@ -77,7 +77,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?задайте JWT_SECRET в .env}
       YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
       YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
-      AUTH_DEV_FAKE: ${AUTH_DEV_FAKE:-0}
       # Публичный адрес API за прокси — для точного redirect_uri Яндекс OAuth
       API_PUBLIC_URL: ${API_PUBLIC_URL:-https://${DOMAIN}/api}
       WEB_ORIGIN: https://${DOMAIN:?задайте DOMAIN в .env}
@@ -96,6 +95,8 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@${DOMAIN}}
       TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+      TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-441931183}
+      TELEGRAM_BOT_POLLING: ${TELEGRAM_BOT_POLLING:-1}
 
   proxy:
     build:

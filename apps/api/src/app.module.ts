@@ -1,6 +1,8 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { HealthController } from './health.controller';
@@ -23,6 +25,9 @@ function redisConnection() {
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env', '.env'] }),
+    // Щедрый глобальный лимит на HTTP (режет явный флуд/скрейпинг). Ставки идут
+    // через WebSocket и сюда не попадают; строгий лимит на /auth/login задан локально.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     BullModule.forRoot({ connection: redisConnection() }),
     PrismaModule,
     RedisModule,
@@ -38,5 +43,6 @@ function redisConnection() {
     AdminModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

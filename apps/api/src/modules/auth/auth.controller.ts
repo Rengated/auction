@@ -3,19 +3,20 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   Post,
   Query,
   Req,
   Res,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { IsNotEmpty, IsString } from 'class-validator';
 import { randomBytes } from 'crypto';
 import type { Request, Response } from 'express';
 import { mergeNotificationPrefs, type MeDto } from '@hermes/shared';
 import { CurrentUser, Public, type AuthUser } from '../../common/decorators';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { TelegramService } from '../telegram/telegram.service';
 import { AuthService } from './auth.service';
 import { YandexService } from './yandex.service';
 
@@ -36,6 +37,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly yandex: YandexService,
     private readonly prisma: PrismaService,
+    private readonly telegram: TelegramService,
   ) {}
 
   /** Старт OAuth-флоу. ?target=web|admin определяет, куда вернуть после входа. */
@@ -43,8 +45,6 @@ export class AuthController {
   @Get('yandex')
   startOauth(@Query('target') target: string | undefined, @Res() res: Response) {
     if (!this.yandex.configured) {
-      // относительный редирект: в проде API живёт за префиксом /api
-      if (this.yandex.devFake) return res.redirect(`dev?target=${target ?? 'web'}`);
       throw new BadRequestException('Yandex OAuth не сконфигурирован');
     }
     const nonce = randomBytes(16).toString('hex');
@@ -78,44 +78,6 @@ export class AuthController {
     return res.redirect(clientOrigin(target));
   }
 
-  /** Dev-вход без Яндекса: страница выбора пользователя из сидов. */
-  @Public()
-  @Get('dev')
-  @Header('Content-Type', 'text/html; charset=utf-8')
-  async devPage(@Query('target') target: string | undefined) {
-    if (!this.yandex.devFake) throw new BadRequestException('Dev-вход выключен');
-    const users = await this.prisma.user.findMany({
-      where: { yandexId: { not: null } },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
-    });
-    const rows = users
-      .map(
-        (u) =>
-          `<li><a href="dev/login?as=${encodeURIComponent(u.yandexId!)}&target=${target ?? 'web'}">` +
-          `${u.displayName} <small>(${u.yandexId}, ${u.role})</small></a></li>`,
-      )
-      .join('\n');
-    return `<!doctype html><meta charset="utf-8"><title>Dev-вход</title>
-      <body style="font:15px/1.6 system-ui;max-width:480px;margin:48px auto">
-      <h2>Dev-вход (Яндекс OAuth не сконфигурирован)</h2><ul>${rows}</ul></body>`;
-  }
-
-  @Public()
-  @Get('dev/login')
-  async devLogin(
-    @Query('as') as_: string,
-    @Query('target') target: string | undefined,
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    if (!this.yandex.devFake) throw new BadRequestException('Dev-вход выключен');
-    const user = await this.prisma.user.findUnique({ where: { yandexId: as_ } });
-    if (!user) throw new UnauthorizedException('Нет такого dev-пользователя');
-    await this.auth.issueSession(user, res, req.headers['user-agent'], 'buyer');
-    return res.redirect(clientOrigin(target));
-  }
-
   @Public()
   @Post('refresh')
   async refresh(@Req() req: Request, @Res() res: Response) {
@@ -137,10 +99,19 @@ export class AuthController {
 
   /** Вход персонала (admin/manager) по логину и паролю. */
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res() res: Response) {
-    const user = await this.auth.verifyPassword(dto.username, dto.password);
-    await this.auth.issueSession(user, res, req.headers['user-agent'], 'staff');
+    const userAgent = req.headers['user-agent'];
+    let user;
+    try {
+      user = await this.auth.verifyPassword(dto.username, dto.password);
+    } catch (e) {
+      void this.telegram.notifyStaffLogin({ ok: false, username: dto.username, ip: req.ip, userAgent });
+      throw e;
+    }
+    await this.auth.issueSession(user, res, userAgent, 'staff');
+    void this.telegram.notifyStaffLogin({ ok: true, username: dto.username, role: user.role, ip: req.ip, userAgent });
     return res.json({ ok: true });
   }
 
