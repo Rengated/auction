@@ -33,6 +33,7 @@ export function lotToTick(lot: Lot): LotTickDto {
     status: lot.status,
     currentPrice: Number(lot.currentPrice),
     bidCount: lot.bidCount,
+    participantsCount: lot.participantsCount,
     reserveMet: lot.reserveMet,
     endsAt: lot.endsAt.toISOString(),
     serverNow: new Date().toISOString(),
@@ -65,6 +66,7 @@ export function lotToDto(
     startsAt: lot.startsAt.toISOString(),
     endsAt: lot.endsAt.toISOString(),
     bidCount: lot.bidCount,
+    participantsCount: lot.participantsCount,
     watchersCount: lot.watchersCount,
     // После очистки медиа остаются только внешние (externalUrl) фото — наши файлы удалены
     photos: [...lot.photos]

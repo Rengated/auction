@@ -37,7 +37,7 @@ export function AuctionControlPage() {
 
   const left = leftSec(lot.endsAt, now);
   const isLive = lot.status === 'live';
-  const participants = Math.max(1, Math.round(lot.bidCount * 0.6));
+  const participants = lot.participantsCount;
   const busy = action.isPending;
   // Ручной выбор победителя: лот завершён и нет активной (не отменённой) сделки.
   const hasActiveDeal = Boolean(lot.dealStatus && lot.dealStatus !== 'cancelled');

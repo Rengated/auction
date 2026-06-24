@@ -5,7 +5,7 @@ import { AI, Ic } from '../components/icons';
 import { useAdminLots, useAuctionAction, type AdminLot } from '../lib/queries';
 import { leftSec, useNow } from '../lib/time';
 
-const partsOf = (l: AdminLot) => Math.max(1, Math.round(l.bidCount * 0.6));
+const partsOf = (l: AdminLot) => l.participantsCount;
 const cell: CSSProperties ={ font: '600 9.5px/1 var(--num)', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--faint)' };
 
 function LiveCard({ lot }: { lot: AdminLot }) {

@@ -118,8 +118,10 @@ model Lot {
   endsAt          DateTime  @map("ends_at") @db.Timestamptz()
   originalEndsAt  DateTime  @map("original_ends_at") @db.Timestamptz()
 
-  bidCount      Int @default(0) @map("bid_count")
-  watchersCount Int @default(0) @map("watchers_count")
+  bidCount         Int @default(0) @map("bid_count")
+  /** Уникальные участники (неотклонённые ставки), денормализованно — как bidCount */
+  participantsCount Int @default(0) @map("participants_count")
+  watchersCount    Int @default(0) @map("watchers_count")
 
   mileage      Int
   engine       String

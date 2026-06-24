@@ -42,7 +42,7 @@ import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { MediaService } from './media.service';
 
-const MAX_MEDIA_PER_LOT = 50;
+const MAX_MEDIA_PER_LOT = 150;
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
@@ -228,13 +228,18 @@ export class AdminLotsController {
     if (!lot) throw new NotFoundException();
     if (lot.status === 'live') throw new BadRequestException('Сначала завершите или снимите торги');
     await this.lifecycle.cancelJobs(id);
-    await this.prisma.lot.update({ where: { id }, data: { archivedAt: new Date() } });
+    const archivedAt = new Date();
+    await this.prisma.lot.update({ where: { id }, data: { archivedAt } });
+    // Планируем очистку медиа из S3 через неделю после архивации (grace на разархивацию).
+    await this.lifecycle.scheduleMediaPurge(id, archivedAt);
     return { ok: true };
   }
 
   @Post(':id/unarchive')
   async unarchive(@Param('id', ParseUUIDPipe) id: string) {
     await this.prisma.lot.update({ where: { id }, data: { archivedAt: null } });
+    // Отменяем запланированную очистку медиа, если файлы ещё не удалены.
+    await this.lifecycle.cancelMediaPurge(id);
     return { ok: true };
   }
 

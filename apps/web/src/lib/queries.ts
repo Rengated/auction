@@ -117,6 +117,7 @@ export function usePlaceBid(lotId: string) {
               ...old,
               currentPrice: res.lot.currentPrice,
               bidCount: res.lot.bidCount,
+              participantsCount: res.lot.participantsCount,
               reserveMet: res.lot.reserveMet,
               endsAt: res.lot.endsAt,
               my: { isLeading: true, lastBid: res.bid.amount },

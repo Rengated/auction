@@ -117,8 +117,8 @@ export class LifecycleService implements OnModuleInit {
     await this.queue.remove(`ending-${lotId}`).catch(() => undefined);
   }
 
-  /** Планирует очистку медиа лота через неделю после выдачи (от deliveredAt). */
-  async scheduleMediaPurge(lotId: string, deliveredAt: Date): Promise<void> {
+  /** Планирует очистку медиа лота через неделю от baseTime (выдача сделки или архивация лота). */
+  async scheduleMediaPurge(lotId: string, baseTime: Date): Promise<void> {
     const jobId = `purge-media-${lotId}`;
     await this.queue.remove(jobId).catch(() => undefined);
     await this.queue.add(
@@ -126,7 +126,7 @@ export class LifecycleService implements OnModuleInit {
       { lotId },
       {
         jobId,
-        delay: Math.max(0, deliveredAt.getTime() + MEDIA_PURGE_MS - Date.now()),
+        delay: Math.max(0, baseTime.getTime() + MEDIA_PURGE_MS - Date.now()),
         removeOnComplete: true,
         removeOnFail: true,
       },
@@ -147,6 +147,7 @@ export class LifecycleService implements OnModuleInit {
       where: { id: lotId },
       select: {
         mediaPurgedAt: true,
+        archivedAt: true,
         autotekaPdfKey: true,
         deal: { select: { status: true } },
         photos: { select: { kind: true, objectKey: true, externalUrl: true } },
@@ -154,8 +155,8 @@ export class LifecycleService implements OnModuleInit {
     });
     if (!lot) return;
     if (lot.mediaPurgedAt) return; // уже очищено
-    // Страховка: чистим только реально выданные лоты
-    if (lot.deal?.status !== 'delivered') return;
+    // Страховка: чистим только реально выданные или заархивированные лоты.
+    if (!lot.archivedAt && lot.deal?.status !== 'delivered') return;
 
     await this.media.purgeLotMedia({ photos: lot.photos, autotekaPdfKey: lot.autotekaPdfKey });
     await this.prisma.lot.update({ where: { id: lotId }, data: { mediaPurgedAt: new Date() } });
@@ -197,11 +198,16 @@ export class LifecycleService implements OnModuleInit {
     });
     for (const l of toClose) await this.closeLot(l.id);
 
-    // Страховка: медиа выданных >7д назад лотов, не очищенные джобой (рестарт и т.п.)
+    // Страховка: медиа выданных или заархивированных >7д назад лотов,
+    // не очищенные джобой (рестарт и т.п.)
+    const purgeThreshold = new Date(now.getTime() - MEDIA_PURGE_MS);
     const toPurge = await this.prisma.lot.findMany({
       where: {
         mediaPurgedAt: null,
-        deal: { status: 'delivered', closedAt: { lte: new Date(now.getTime() - MEDIA_PURGE_MS) } },
+        OR: [
+          { deal: { status: 'delivered', closedAt: { lte: purgeThreshold } } },
+          { archivedAt: { lte: purgeThreshold } },
+        ],
       },
       select: { id: true },
     });
@@ -479,12 +485,14 @@ export class LifecycleService implements OnModuleInit {
         orderBy: { amount: 'desc' },
       });
       const count = await tx.bid.count({ where: { lotId, rejectedAt: null } });
+      const participants = await tx.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
       const updated = await tx.lot.update({
         where: { id: lotId },
         data: {
           currentBidId: leader?.id ?? null,
           currentPrice: leader ? leader.amount : lot.start_price,
           bidCount: count,
+          participantsCount: participants.length,
           reserveMet: leader ? leader.amount >= lot.reserve_price : false,
         },
       });

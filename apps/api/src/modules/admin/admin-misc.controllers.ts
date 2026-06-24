@@ -67,6 +67,8 @@ const DEAL_INCLUDE = {
 class DealPatchDto {
   @IsOptional() @IsIn(['won', 'contacted', 'signed', 'delivered', 'cancelled']) status?: DealStatus;
   @IsOptional() @IsString() note?: string;
+  /** Ручная корректировка цены победы; комиссия и итог пересчитываются по feeRate сделки. */
+  @IsOptional() @IsNumber() @Min(0) amount?: number;
 }
 
 @Roles(...STAFF)
@@ -114,13 +116,20 @@ export class AdminDealsController {
 
   @Patch(':id')
   async patch(@Param('id', ParseUUIDPipe) id: string, @Body() dto: DealPatchDto) {
-    const before = await this.prisma.deal.findUnique({ where: { id }, select: { status: true } });
+    const before = await this.prisma.deal.findUnique({ where: { id }, select: { status: true, feeRate: true } });
     if (!before) throw new NotFoundException();
     const deal = await this.prisma.deal.update({
       where: { id },
       data: {
         status: dto.status,
         note: dto.note,
+        // Ручная корректировка цены победы: пересчитываем комиссию по снимку feeRate.
+        ...(dto.amount !== undefined
+          ? {
+              amount: BigInt(Math.round(dto.amount)),
+              feeAmount: BigInt(Math.round(dto.amount * Number(before.feeRate))),
+            }
+          : {}),
         // closedAt = дата выдачи: ставим при delivered, снимаем при откате на ранний этап.
         closedAt:
           dto.status === 'delivered' ? new Date() : dto.status && dto.status !== 'cancelled' ? null : undefined,

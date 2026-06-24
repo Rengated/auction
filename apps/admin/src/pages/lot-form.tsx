@@ -261,7 +261,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
         {/* левая колонка: основные поля */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="pcard">
-            <div className="ph"><h3>Фотографии</h3><div className="sub">до 50 фото и видео · экстерьер, салон, документы</div></div>
+            <div className="ph"><h3>Фотографии</h3><div className="sub">до 150 фото и видео · экстерьер, салон, документы</div></div>
             <div style={{ padding: 20 }}>
               {id ? (
                 <>
@@ -296,7 +296,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
                 <div className="dz">
                   <Ic d={AI.camera} s={26} />
                   <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем добавьте фото и видео</div>
-                  <div className="num" style={{ fontSize: 11 }}>JPG, PNG, MP4 · до 50 шт</div>
+                  <div className="num" style={{ fontSize: 11 }}>JPG, PNG, MP4 · до 150 шт</div>
                 </div>
               )}
             </div>

@@ -38,6 +38,8 @@ export interface LotDto {
   startsAt: string; // ISO
   endsAt: string; // ISO
   bidCount: number;
+  /** Уникальные участники торга (неотклонённые ставки) */
+  participantsCount: number;
   watchersCount: number;
   photos: LotPhotoDto[];
   mileage: number;
@@ -91,6 +93,7 @@ export interface LotTickDto {
   status: LotStatus;
   currentPrice: number;
   bidCount: number;
+  participantsCount: number;
   reserveMet: boolean;
   endsAt: string;
   serverNow: string;

@@ -29,8 +29,8 @@ import { I, Ic } from '../components/icons';
 
 const QUICK = [20_000, 50_000, 100_000];
 
-/** Участники — производная от числа ставок (точных данных API не отдаёт). */
-const participantsOf = (lot: LotDto) => Math.max(1, Math.round(lot.bidCount * 0.6));
+/** Участники — реальное число уникальных участников торга из API. */
+const participantsOf = (lot: LotDto) => lot.participantsCount;
 
 const lotNo = (lot: LotDto) => `лот #${lot.id.slice(0, 6).toUpperCase()}`;
 

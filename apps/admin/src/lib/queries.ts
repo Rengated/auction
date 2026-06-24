@@ -401,7 +401,7 @@ export function useAuctionAction(lotId: string) {
 
 export function usePatchDeal(id: string) {
   const qc = useQueryClient();
-  return useMutation<AdminDeal, ApiError, { status?: AdminDeal['status']; note?: string }>({
+  return useMutation<AdminDeal, ApiError, { status?: AdminDeal['status']; note?: string; amount?: number }>({
     mutationFn: (data) => patch(`/admin/deals/${id}`, data),
     onSuccess: (deal) => {
       qc.setQueryData(['deal', id], deal);

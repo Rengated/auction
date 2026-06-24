@@ -16,11 +16,19 @@ export function DealDetailPage() {
   const toast = useToast();
 
   const [note, setNote] = useState('');
+  const [amount, setAmount] = useState('');
   useEffect(() => {
-    if (deal) setNote(deal.note);
+    if (deal) {
+      setNote(deal.note);
+      setAmount(String(deal.amount));
+    }
   }, [deal?.id]);
 
   if (!deal) return <div className="content fade" />;
+
+  const amountNum = Math.max(0, Math.round(Number(amount) || 0));
+  const feeAmount = Math.round(amountNum * deal.feeRate);
+  const amountDirty = amountNum !== deal.amount;
 
   const wonAt = new Date(deal.createdAt).toLocaleString('ru-RU');
   const [statusLabel, statusCls] = DEAL_STATUS[deal.status];
@@ -115,16 +123,44 @@ export function DealDetailPage() {
                 <button className="btn sm" onClick={() => navigate(`/lots/${deal.lotId}/edit`)}>Лот</button>
               </div>
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                <div className="num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--dim)' }}>
-                  <span>цена победы</span><span>{fmt(deal.amount)} ₽</span>
+                <div className="num" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14, color: 'var(--dim)' }}>
+                  <span>цена победы</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      className="in num"
+                      type="number"
+                      min={0}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      style={{ width: 150, textAlign: 'right', padding: '6px 8px', fontSize: 14 }}
+                    />
+                    ₽
+                  </span>
                 </div>
                 <div className="num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--dim)' }}>
                   <span>комиссия {(deal.feeRate * 100).toLocaleString('ru-RU')}%</span>
-                  <span style={{ color: 'var(--gold)' }}>{fmt(deal.feeAmount)} ₽</span>
+                  <span style={{ color: 'var(--gold)' }}>{fmt(feeAmount)} ₽</span>
                 </div>
                 <div className="num" style={{ display: 'flex', justifyContent: 'space-between', fontSize: 17, fontWeight: 700, paddingTop: 11, borderTop: '1px dashed var(--line2)' }}>
-                  <span>к оплате</span><span>{fmt(deal.amount + deal.feeAmount)} ₽</span>
+                  <span>к оплате</span><span>{fmt(amountNum + feeAmount)} ₽</span>
                 </div>
+                {amountDirty && (
+                  <button
+                    className="btn sm"
+                    disabled={patch.isPending}
+                    onClick={() =>
+                      patch.mutate(
+                        { amount: amountNum },
+                        {
+                          onSuccess: () => toast.ok('Сумма сделки обновлена'),
+                          onError: (e) => toast.error(`Не удалось сохранить сумму: ${e.message}`),
+                        },
+                      )
+                    }
+                  >
+                    Сохранить сумму
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -36,6 +36,7 @@ function patchLotCaches(tick: LotTickDto): void {
     status: tick.status,
     currentPrice: tick.currentPrice,
     bidCount: tick.bidCount,
+    participantsCount: tick.participantsCount,
     reserveMet: tick.reserveMet,
     endsAt: tick.endsAt,
   });

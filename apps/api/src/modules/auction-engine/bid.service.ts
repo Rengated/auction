@@ -36,7 +36,7 @@ interface PlacedBid {
   bidId: string;
   amount: number;
   createdAt: Date;
-  lotAfter: { endsAt: Date; bidCount: number; reserveMet: boolean; currentPrice: number; status: string };
+  lotAfter: { endsAt: Date; bidCount: number; participantsCount: number; reserveMet: boolean; currentPrice: number; status: string };
   extended: boolean;
   prevLeader: { userId: string; amount: number } | null;
   lotTitle: string;
@@ -68,6 +68,7 @@ export class BidService {
         status: placed.lotAfter.status as never,
         currentPrice: placed.lotAfter.currentPrice,
         bidCount: placed.lotAfter.bidCount,
+        participantsCount: placed.lotAfter.participantsCount,
         reserveMet: placed.lotAfter.reserveMet,
         endsAt: placed.lotAfter.endsAt.toISOString(),
         serverNow: new Date().toISOString(),
@@ -130,6 +131,7 @@ export class BidService {
         status: placed.lotAfter.status as never,
         currentPrice: placed.lotAfter.currentPrice,
         bidCount: placed.lotAfter.bidCount,
+        participantsCount: placed.lotAfter.participantsCount,
         reserveMet: placed.lotAfter.reserveMet,
         endsAt: placed.lotAfter.endsAt.toISOString(),
         serverNow: new Date().toISOString(),
@@ -169,6 +171,7 @@ export class BidService {
         lotAfter: {
           endsAt: fresh.endsAt,
           bidCount: fresh.bidCount,
+          participantsCount: fresh.participantsCount,
           reserveMet: fresh.reserveMet,
           currentPrice: Number(fresh.currentPrice),
           status: fresh.status,
@@ -235,6 +238,9 @@ export class BidService {
       }
     }
 
+    // Уникальные участники (включая только что созданную ставку) — держим в синхроне с bidCount.
+    const participants = await tx.bid.groupBy({ by: ['userId'], where: { lotId, rejectedAt: null } });
+
     const reserveMet = BigInt(amount) >= lot.reserve_price;
     const updated = await tx.lot.update({
       where: { id: lotId },
@@ -242,6 +248,7 @@ export class BidService {
         currentPrice: BigInt(amount),
         currentBidId: bid.id,
         bidCount: { increment: 1 },
+        participantsCount: participants.length,
         reserveMet,
         endsAt,
       },
@@ -264,6 +271,7 @@ export class BidService {
       lotAfter: {
         endsAt: updated.endsAt,
         bidCount: updated.bidCount,
+        participantsCount: updated.participantsCount,
         reserveMet: updated.reserveMet,
         currentPrice: Number(updated.currentPrice),
         status: updated.status,
