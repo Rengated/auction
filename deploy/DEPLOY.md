@@ -8,12 +8,13 @@ API (NestJS) и Caddy (reverse-proxy + статика клиента и адми
 
 ## 1. DNS
 
-Создайте две A-записи на IP сервера:
+Создайте три A-записи на IP сервера:
 
 | Запись | Назначение |
 |---|---|
 | `auction.example.ru` | клиент покупателя (PWA) |
 | `admin.auction.example.ru` | админка |
+| `status.auction.example.ru` | мониторинг аптайма (Uptime Kuma) |
 
 Дождитесь, пока записи разрезолвятся (`dig +short auction.example.ru`) — без этого Caddy не выпустит сертификаты.
 
@@ -56,6 +57,7 @@ docker compose -f docker-compose.prod.yml logs -f api   # дождаться "Ne
 
 Миграции БД применяются автоматически при старте контейнера `api`.
 Проверка: `https://auction.example.ru` — каталог (пустой), `https://admin.auction.example.ru` — экран входа.
+`https://status.auction.example.ru` — первый вход в Uptime Kuma, где создаётся admin-пользователь.
 
 ## 5. Первый администратор
 
@@ -108,12 +110,32 @@ docker system prune -f                                    # подчистить
 
 Точки внимания: место на диске (видео лотов в volume `hermes_miniodata`), warn-логи `TelegramService` (неверный токен/канал не ломают торги, но посты не уходят).
 
+### Мониторинг
+
+Uptime Kuma доступен на `https://status.DOMAIN`. После первого входа добавьте проверки:
+
+- `https://DOMAIN/api/health` — API и Postgres (`SELECT 1`).
+- `https://DOMAIN/` — клиентская статика.
+- `https://admin.DOMAIN/` — админка.
+- `https://DOMAIN/socket.io/?EIO=4&transport=polling` — доступность Socket.IO endpoint.
+
+Для алертов можно включить Telegram-уведомления в интерфейсе Uptime Kuma.
+
+Netdata слушает только `127.0.0.1:19999` на сервере. Открывайте через SSH-туннель:
+
+```bash
+ssh -L 19999:127.0.0.1:19999 root@SERVER
+```
+
+Затем локально откройте `http://127.0.0.1:19999`. Смотрите CPU steal, disk await/util, RAM, network и Docker containers.
+
 ## Архитектура прода
 
 ```
                     ┌─ Caddy (80/443, авто-TLS) ─────────────────┐
   auction.ru ──────▶│  /            → статика клиента (PWA)      │
   admin.auction.ru ▶│  /            → статика админки            │
+  status.auction.ru▶│  /            → uptime-kuma:3001           │
                     │  /api/*       → api:3000 (префикс срезан)  │
                     │  /socket.io/* → api:3000 (WebSocket)       │
                     │  /s3/*        → minio:9000 (медиа лотов)   │

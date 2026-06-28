@@ -85,3 +85,10 @@ admin.{$DOMAIN} {
 		file_server
 	}
 }
+
+# Мониторинг аптайма — https://status.{DOMAIN}
+# Первый вход создаёт admin-пользователя Uptime Kuma.
+status.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy uptime-kuma:3001
+}
