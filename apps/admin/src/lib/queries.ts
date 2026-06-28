@@ -117,6 +117,15 @@ export interface AdminSettings {
   tgEventToggles: Record<string, boolean>;
 }
 
+interface DirectUploadPrepareResponse {
+  objectKey: string;
+  uploadUrl: string;
+  headers: Record<string, string>;
+  expiresIn: number;
+}
+
+type DirectUploadKind = 'video' | 'autoteka';
+
 export interface DashboardData {
   from: string;
   to: string;
@@ -251,6 +260,43 @@ function invalidateLots(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['dashboard'] });
 }
 
+async function mapConcurrent<T, R>(items: T[], concurrency: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function directUpload(lotId: string, kind: DirectUploadKind, file: File, mimetype: string) {
+  const prepared = await post<DirectUploadPrepareResponse>(`/admin/lots/${lotId}/direct-upload`, {
+    kind,
+    mimetype,
+    size: file.size,
+  });
+  const uploaded = await fetch(prepared.uploadUrl, {
+    method: 'PUT',
+    headers: prepared.headers,
+    body: file,
+  });
+  if (!uploaded.ok) {
+    throw new ApiError(uploaded.status, {
+      code: 'DIRECT_UPLOAD_FAILED',
+      message: `Не удалось загрузить файл в хранилище: ${uploaded.statusText || uploaded.status}`,
+    });
+  }
+  return post(`/admin/lots/${lotId}/direct-upload/complete`, {
+    kind,
+    objectKey: prepared.objectKey,
+    mimetype,
+  });
+}
+
 export function useCreateLot() {
   const qc = useQueryClient();
   return useMutation<{ id: string }, ApiError, LotFormPayload>({
@@ -329,10 +375,19 @@ export function useDeleteLot() {
 export function useUploadPhotos(lotId: string) {
   const qc = useQueryClient();
   return useMutation<unknown, ApiError, File[]>({
-    mutationFn: (files) => {
-      const form = new FormData();
-      files.forEach((f) => form.append('files', f));
-      return postForm(`/admin/lots/${lotId}/photos`, form);
+    mutationFn: async (files) => {
+      const photos = files.filter((f) => !f.type.startsWith('video/'));
+      const videos = files.filter((f) => f.type.startsWith('video/'));
+      const tasks: Array<Promise<unknown>> = [];
+      if (photos.length) {
+        const form = new FormData();
+        photos.forEach((f) => form.append('files', f));
+        tasks.push(postForm(`/admin/lots/${lotId}/photos`, form));
+      }
+      if (videos.length) {
+        tasks.push(mapConcurrent(videos, 3, (file) => directUpload(lotId, 'video', file, file.type || 'video/mp4')));
+      }
+      return Promise.all(tasks);
     },
     onSuccess: () => invalidateLots(qc),
   });
@@ -349,11 +404,7 @@ export function useDeletePhoto(lotId: string) {
 export function useUploadAutoteka(lotId: string) {
   const qc = useQueryClient();
   return useMutation<{ autotekaPdfUrl: string }, ApiError, File>({
-    mutationFn: (file) => {
-      const form = new FormData();
-      form.append('file', file);
-      return postForm(`/admin/lots/${lotId}/autoteka`, form);
-    },
+    mutationFn: (file) => directUpload(lotId, 'autoteka', file, 'application/pdf') as Promise<{ autotekaPdfUrl: string }>,
     onSuccess: () => invalidateLots(qc),
   });
 }

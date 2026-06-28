@@ -22,6 +22,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -45,8 +46,22 @@ import { MediaService } from './media.service';
 const MAX_MEDIA_PER_LOT = 150;
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const MEDIA_UPLOAD_CONCURRENCY = 3;
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
 const VIDEO_MIMES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+
+async function mapConcurrent<T, R>(items: T[], concurrency: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 class LotFormDto {
   @IsString() @IsNotEmpty() make!: string;
@@ -76,6 +91,18 @@ class LotFormDto {
   @IsDateString() startsAt!: string;
   @IsDateString() endsAt!: string;
   @IsOptional() @IsBoolean() published?: boolean;
+}
+
+class DirectUploadPrepareDto {
+  @IsIn(['video', 'autoteka']) kind!: 'video' | 'autoteka';
+  @IsString() mimetype!: string;
+  @IsInt() @Min(1) size!: number;
+}
+
+class DirectUploadCompleteDto {
+  @IsIn(['video', 'autoteka']) kind!: 'video' | 'autoteka';
+  @IsString() objectKey!: string;
+  @IsString() mimetype!: string;
 }
 
 @Roles(...STAFF)
@@ -285,20 +312,80 @@ export class AdminLotsController {
         throw new BadRequestException(`Неподдерживаемый формат: ${f.mimetype}`);
       }
     }
-    let sort = lot.photos.reduce((m, p) => Math.max(m, p.sort + 1), 0);
-    const created = [];
-    for (const f of incoming) {
+    const firstSort = lot.photos.reduce((m, p) => Math.max(m, p.sort + 1), 0);
+    const created = await mapConcurrent(incoming, MEDIA_UPLOAD_CONCURRENCY, async (f, index) => {
       const isVideo = VIDEO_MIMES.has(f.mimetype);
       const key = isVideo
         ? await this.media.uploadLotVideo(id, f.buffer, f.mimetype)
         : await this.media.uploadLotPhoto(id, f.buffer);
-      created.push(
-        await this.prisma.lotPhoto.create({
-          data: { lotId: id, kind: isVideo ? 'video' : 'photo', objectKey: key, sort: sort++ },
-        }),
-      );
-    }
+      return this.prisma.lotPhoto.create({
+        data: { lotId: id, kind: isVideo ? 'video' : 'photo', objectKey: key, sort: firstSort + index },
+      });
+    });
     return created.map(photoToDto);
+  }
+
+  @Post(':id/direct-upload')
+  async prepareDirectUpload(@Param('id', ParseUUIDPipe) id: string, @Body() dto: DirectUploadPrepareDto) {
+    const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
+    if (!lot) throw new NotFoundException();
+
+    if (dto.kind === 'video') {
+      if (!VIDEO_MIMES.has(dto.mimetype)) throw new BadRequestException(`Неподдерживаемый формат: ${dto.mimetype}`);
+      if (dto.size > MAX_VIDEO_BYTES) throw new BadRequestException('Видео не больше 200 МБ');
+      if (lot.photos.length + 1 > MAX_MEDIA_PER_LOT) {
+        throw new BadRequestException(`Не более ${MAX_MEDIA_PER_LOT} фото и видео на лот`);
+      }
+      const objectKey = this.media.createLotVideoKey(id, dto.mimetype);
+      return {
+        objectKey,
+        uploadUrl: await this.media.presignPutObject(objectKey, dto.mimetype),
+        headers: { 'Content-Type': dto.mimetype },
+        expiresIn: 15 * 60,
+      };
+    }
+
+    if (dto.mimetype !== 'application/pdf') throw new BadRequestException('Нужен PDF-файл отчёта Автотеки');
+    if (dto.size > 25 * 1024 * 1024) throw new BadRequestException('PDF не больше 25 МБ');
+    const objectKey = this.media.createAutotekaPdfKey(id);
+    return {
+      objectKey,
+      uploadUrl: await this.media.presignPutObject(objectKey, 'application/pdf'),
+      headers: { 'Content-Type': 'application/pdf' },
+      expiresIn: 15 * 60,
+    };
+  }
+
+  @Post(':id/direct-upload/complete')
+  async completeDirectUpload(@Param('id', ParseUUIDPipe) id: string, @Body() dto: DirectUploadCompleteDto) {
+    const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
+    if (!lot) throw new NotFoundException();
+    if (!dto.objectKey.startsWith(`lots/${id}/`)) throw new BadRequestException('Некорректный ключ объекта');
+    if (!(await this.media.objectExists(dto.objectKey))) {
+      throw new BadRequestException('Файл не найден в хранилище');
+    }
+
+    if (dto.kind === 'video') {
+      if (!VIDEO_MIMES.has(dto.mimetype)) throw new BadRequestException(`Неподдерживаемый формат: ${dto.mimetype}`);
+      if (lot.photos.length + 1 > MAX_MEDIA_PER_LOT) {
+        throw new BadRequestException(`Не более ${MAX_MEDIA_PER_LOT} фото и видео на лот`);
+      }
+      const sort = lot.photos.reduce((m, p) => Math.max(m, p.sort + 1), 0);
+      const created = await this.prisma.lotPhoto.create({
+        data: { lotId: id, kind: 'video', objectKey: dto.objectKey, sort },
+      });
+      return photoToDto(created);
+    }
+
+    if (dto.mimetype !== 'application/pdf') throw new BadRequestException('Нужен PDF-файл отчёта Автотеки');
+    if (!dto.objectKey.includes('/autoteka-') || !dto.objectKey.endsWith('.pdf')) {
+      throw new BadRequestException('Некорректный ключ PDF');
+    }
+    if (lot.autotekaPdfKey && lot.autotekaPdfKey !== dto.objectKey) {
+      await this.media.deleteObject(lot.autotekaPdfKey);
+    }
+    const updated = await this.prisma.lot.update({ where: { id }, data: { autotekaPdfKey: dto.objectKey } });
+    return { autotekaPdfUrl: autotekaPdfUrl(updated) };
   }
 
   @Delete(':id/photos/:photoId')

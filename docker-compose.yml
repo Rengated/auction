@@ -51,7 +51,9 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 hermes hermes-secret &&
       mc mb -p local/lots &&
-      mc anonymous set download local/lots
+      mc anonymous set download local/lots &&
+      printf '[{\"AllowedOrigins\":[\"*\"],\"AllowedMethods\":[\"GET\",\"PUT\",\"HEAD\"],\"AllowedHeaders\":[\"*\"],\"ExposeHeaders\":[\"ETag\"],\"MaxAgeSeconds\":3000}]' > /tmp/cors.json &&
+      mc cors set local/lots /tmp/cors.json
       "
 
 volumes:

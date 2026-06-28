@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PutObjectCommand, DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand, DeleteObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 
@@ -10,14 +11,21 @@ const SIZES = { card: 480, md: 900, lg: 1600 } as const;
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
   private readonly bucket = process.env.S3_BUCKET ?? 'lots';
+  private readonly credentials = {
+    accessKeyId: process.env.S3_ACCESS_KEY ?? 'hermes',
+    secretAccessKey: process.env.S3_SECRET_KEY ?? 'hermes-secret',
+  };
   private readonly s3 = new S3Client({
     endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
     region: process.env.S3_REGION ?? 'us-east-1',
     forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? 'hermes',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? 'hermes-secret',
-    },
+    credentials: this.credentials,
+  });
+  private readonly browserS3 = new S3Client({
+    endpoint: process.env.S3_BROWSER_ENDPOINT ?? process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+    region: process.env.S3_REGION ?? 'us-east-1',
+    forcePathStyle: true,
+    credentials: this.credentials,
   });
 
   /** Возвращает objectKey (без суффикса размера). */
@@ -51,8 +59,7 @@ export class MediaService {
 
   /** Видео хранится одним файлом как есть (транскодинга нет) — ключ с расширением. */
   async uploadLotVideo(lotId: string, buffer: Buffer, mimetype: string): Promise<string> {
-    const ext = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[mimetype] ?? 'mp4';
-    const key = `lots/${lotId}/${randomUUID()}.${ext}`;
+    const key = this.createLotVideoKey(lotId, mimetype);
     await this.s3.send(
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: mimetype }),
     );
@@ -61,11 +68,41 @@ export class MediaService {
 
   /** PDF-отчёт Автотеки как есть. */
   async uploadAutotekaPdf(lotId: string, buffer: Buffer): Promise<string> {
-    const key = `lots/${lotId}/autoteka-${randomUUID()}.pdf`;
+    const key = this.createAutotekaPdfKey(lotId);
     await this.s3.send(
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: 'application/pdf' }),
     );
     return key;
+  }
+
+  createLotVideoKey(lotId: string, mimetype: string): string {
+    const ext = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[mimetype] ?? 'mp4';
+    return `lots/${lotId}/${randomUUID()}.${ext}`;
+  }
+
+  createAutotekaPdfKey(lotId: string): string {
+    return `lots/${lotId}/autoteka-${randomUUID()}.pdf`;
+  }
+
+  async presignPutObject(objectKey: string, contentType: string, expiresIn = 15 * 60): Promise<string> {
+    return getSignedUrl(
+      this.browserS3,
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        ContentType: contentType,
+      }),
+      { expiresIn },
+    );
+  }
+
+  async objectExists(objectKey: string): Promise<boolean> {
+    try {
+      await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey }));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Удаление одиночного объекта по точному ключу (видео, PDF). */

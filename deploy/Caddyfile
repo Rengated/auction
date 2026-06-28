@@ -85,3 +85,11 @@ admin.{$DOMAIN} {
 		file_server
 	}
 }
+
+# Прямая загрузка больших файлов по presigned URL.
+# Важно: путь не переписывается, иначе MinIO отклонит SigV4-подпись.
+s3.{$DOMAIN} {
+	reverse_proxy minio:9000 {
+		header_up Host {host}
+	}
+}
