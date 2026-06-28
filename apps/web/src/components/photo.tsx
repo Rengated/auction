@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import Lightbox from 'yet-another-react-lightbox';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
@@ -47,6 +47,59 @@ export function Photo({
       <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>
         {cap && <span className="cap">{cap}</span>}
         {children}
+      </div>
+    </div>
+  );
+}
+
+export function VideoThumb({ src, h = 70 }: { src?: string | null; h?: number }) {
+  const seekPreview = (e: SyntheticEvent<HTMLVideoElement>) => {
+    try {
+      e.currentTarget.currentTime = 0.1;
+    } catch {
+      // Some mobile browsers disallow programmatic seek before enough data is buffered.
+    }
+  };
+  return (
+    <div className="photo" style={{ height: h }}>
+      {src && (
+        <video
+          src={src}
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={seekPreview}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
+        />
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 2,
+          display: 'grid',
+          placeItems: 'center',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.28))',
+          pointerEvents: 'none',
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: 'color-mix(in srgb, var(--bg) 62%, transparent)',
+            border: '1px solid var(--line)',
+            color: 'var(--text)',
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: 12,
+            lineHeight: 1,
+          }}
+        >
+          ▶
+        </span>
       </div>
     </div>
   );

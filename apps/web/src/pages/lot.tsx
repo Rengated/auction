@@ -18,7 +18,7 @@ import { useBidForm } from '../lib/bid-form';
 import { useLotRoom } from '../lib/ws';
 import { useNow, leftSec } from '../lib/time';
 import { useIsMobile } from '../lib/layout';
-import { Carousel, Photo } from '../components/photo';
+import { Carousel, Photo, VideoThumb } from '../components/photo';
 import { StatusBadge } from '../components/status-badge';
 import { BidInput } from '../components/bid-input';
 import { BidList } from '../components/bid-list';
@@ -452,7 +452,7 @@ function LotView({ lot, feed }: { lot: LotDto; feed: BidRowDto[] }) {
                   style={{ cursor: 'pointer' }}
                 >
                   {p.kind === 'video' ? (
-                    <div style={{ height: 70, background: 'linear-gradient(135deg, #2a2f37 0%, #171a1f 100%)', display: 'grid', placeItems: 'center', color: '#f5f4f0', fontSize: 16, opacity: 0.9 }}>▶</div>
+                    <VideoThumb src={p.card} h={70} />
                   ) : (
                     <Photo src={p.card ?? null} h={70} glyph={String(i + 1)} />
                   )}
