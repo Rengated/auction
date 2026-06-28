@@ -47,10 +47,14 @@ export interface LotDefaults {
 }
 
 export function lotToDto(
-  lot: Lot & { photos: LotPhoto[] },
+  lot: Lot & { photos: LotPhoto[]; _count?: { photos: number } },
   defaults: LotDefaults,
   extra?: { isFavorite?: boolean; my?: { isLeading: boolean; lastBid: number | null } },
 ): LotDto {
+  const photos = [...lot.photos]
+    .filter((p) => (lot.mediaPurgedAt ? Boolean(p.externalUrl) : true))
+    .sort((a, b) => a.sort - b.sort)
+    .map(photoToDto);
   return {
     id: lot.id,
     make: lot.make,
@@ -68,11 +72,9 @@ export function lotToDto(
     bidCount: lot.bidCount,
     participantsCount: lot.participantsCount,
     watchersCount: lot.watchersCount,
+    photosCount: lot._count?.photos ?? photos.length,
     // После очистки медиа остаются только внешние (externalUrl) фото — наши файлы удалены
-    photos: [...lot.photos]
-      .filter((p) => (lot.mediaPurgedAt ? Boolean(p.externalUrl) : true))
-      .sort((a, b) => a.sort - b.sort)
-      .map(photoToDto),
+    photos,
     mileage: lot.mileage,
     engine: lot.engine,
     power: lot.power,

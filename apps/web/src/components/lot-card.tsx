@@ -49,9 +49,10 @@ export function LotCardBody({ lot, onToggleFav }: { lot: LotDto; onToggleFav?: (
   const now = useNow();
   const m = cardPriceMeta(lot, now);
   const cover = lot.photos[0]?.card || null;
+  const photosCount = lot.photosCount ?? lot.photos.length;
   return (
     <>
-      <Photo src={cover} cap={`${lot.photos.length} фото`} h={182} glyph={lot.make.toUpperCase()} fit="cover">
+      <Photo src={cover} cap={`${photosCount} фото`} h={182} glyph={lot.make.toUpperCase()} fit="cover">
         <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', pointerEvents: 'auto' }}>
           <StatusBadge lot={lot} />
           <span

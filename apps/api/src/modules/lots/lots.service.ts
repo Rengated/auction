@@ -56,7 +56,13 @@ export class LotsService {
     const ids = rows.map((r) => r.id);
     if (ids.length === 0) return { items: [], total, limit, offset };
 
-    const lots = await this.prisma.lot.findMany({ where: { id: { in: ids } }, include: { photos: true } });
+    const lots = await this.prisma.lot.findMany({
+      where: { id: { in: ids } },
+      include: {
+        photos: { orderBy: { sort: 'asc' }, take: 1 },
+        _count: { select: { photos: true } },
+      },
+    });
     const byId = new Map(lots.map((l) => [l.id, l]));
     const ordered = ids.map((id) => byId.get(id)!);
 
@@ -77,7 +83,10 @@ export class LotsService {
   }
 
   async byId(id: string, userId: string | null): Promise<LotDto> {
-    const lot = await this.prisma.lot.findUnique({ where: { id }, include: { photos: true } });
+    const lot = await this.prisma.lot.findUnique({
+      where: { id },
+      include: { photos: { orderBy: { sort: 'asc' } }, _count: { select: { photos: true } } },
+    });
     // Архивный лот скрыт для всех (и по прямой ссылке/из избранного) → 404.
     if (!lot || lot.archivedAt || (!lot.published && !userId)) throw new NotFoundException();
     const defaults = await this.settings.lotDefaults();

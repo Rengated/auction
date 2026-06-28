@@ -41,6 +41,8 @@ export interface LotDto {
   /** Уникальные участники торга (неотклонённые ставки) */
   participantsCount: number;
   watchersCount: number;
+  /** Полное количество фото/видео у лота. В каталоге photos может содержать только обложку. */
+  photosCount?: number;
   photos: LotPhotoDto[];
   mileage: number;
   engine: string;
