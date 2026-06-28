@@ -46,7 +46,7 @@ function patchLotCaches(tick: LotTickDto): void {
 
 export function getSocket(): Socket {
   if (socket) return socket;
-  socket = io({ withCredentials: true });
+  socket = io({ transports: ['websocket'], withCredentials: true });
 
   socket.on(WS_EVENTS.BID_PLACED, (e: BidPlacedEvent) => {
     patchLotCaches(e.lot);
