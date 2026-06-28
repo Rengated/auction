@@ -194,6 +194,23 @@ button { font-family: var(--ui); }
   overflow: hidden;
 }
 
+.sk {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 7%, transparent), transparent);
+  animation: sk 1.35s ease-in-out infinite;
+}
+@keyframes sk { to { transform: translateX(100%); } }
+.sk-line { height: 12px; border-radius: 999px; }
+.sk-card { pointer-events: none; }
+
 .spec-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line-soft); }
 .spec-row:last-child { border-bottom: 0; }
 .spec-row .k { color: var(--text-dim); font-size: 14px; }

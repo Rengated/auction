@@ -79,6 +79,75 @@ const specRowsOf = (lot: LotDto): Array<[string, string]> => [
   ['Цвет', lot.color],
 ];
 
+function LotSkeleton({ mobile }: { mobile: boolean }) {
+  if (mobile) {
+    return (
+      <div className="screen screen-enter">
+        <div className="body">
+          <div className="sk" style={{ height: 264 }} />
+          <div style={{ padding: '16px 18px 0' }}>
+            <div className="sk sk-line" style={{ width: 86 }} />
+            <div className="sk sk-line" style={{ width: '72%', height: 26, marginTop: 12 }} />
+            <div className="sk sk-line" style={{ width: '54%', marginTop: 12 }} />
+            <div style={{ display: 'flex', gap: 16, marginTop: 20 }}>
+              <div style={{ flex: 1 }}>
+                <div className="sk sk-line" style={{ width: 78 }} />
+                <div className="sk sk-line" style={{ width: '82%', height: 22, marginTop: 10 }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div className="sk sk-line" style={{ width: 96 }} />
+                <div className="sk sk-line" style={{ width: '60%', height: 18, marginTop: 10 }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ padding: '22px 18px 0' }}>
+            <div className="seg">
+              {[0, 1, 2].map((i) => <div key={i} className="sk" style={{ flex: 1, height: 33, borderRadius: 7 }} />)}
+            </div>
+          </div>
+          <div style={{ padding: '16px 18px 100px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="card sk-card" style={{ padding: 14 }}><div className="sk sk-line" style={{ width: '70%' }} /><div className="sk sk-line" style={{ width: '48%', marginTop: 12 }} /></div>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wrap viewfade">
+      <div style={{ padding: '22px 0 0' }}><div className="sk sk-line" style={{ width: 148, height: 40, borderRadius: 10 }} /></div>
+      <div style={{ padding: '22px 0', display: 'flex', justifyContent: 'space-between', gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          <div className="sk sk-line" style={{ width: 120 }} />
+          <div className="sk sk-line" style={{ width: '42%', height: 32, marginTop: 14 }} />
+          <div className="sk sk-line" style={{ width: '30%', marginTop: 14 }} />
+        </div>
+        <div className="sk sk-line" style={{ width: 110, height: 28, borderRadius: 7 }} />
+      </div>
+      <div className="lot-grid">
+        <div>
+          <div className="gallery-main"><div className="sk" style={{ height: 420 }} /></div>
+          <div className="thumbs">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="thumb sk" />)}</div>
+          <div style={{ marginTop: 26 }}>
+            <div className="wseg">{[0, 1, 2].map((i) => <div key={i} className="sk" style={{ flex: 1, height: 40, borderRadius: 8 }} />)}</div>
+            <div className="specgrid" style={{ marginTop: 18 }}>
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="card sk-card" style={{ padding: 16 }}><div className="sk sk-line" style={{ width: '64%' }} /><div className="sk sk-line" style={{ width: '46%', marginTop: 12 }} /></div>)}
+            </div>
+          </div>
+        </div>
+        <div className="bidbox">
+          <div className="sk sk-line" style={{ width: 120 }} />
+          <div className="sk sk-line" style={{ width: '74%', height: 32, marginTop: 14 }} />
+          <div className="statline">
+            {[0, 1, 2].map((i) => <div key={i}><div className="sk sk-line" /><div className="sk sk-line" style={{ height: 18, marginTop: 10 }} /></div>)}
+          </div>
+          <div className="sk" style={{ height: 48, borderRadius: 10 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================ мобайл ============================ */
 
 /** Липкая панель ставки (BidPanel из hifi-lot.jsx). */
@@ -532,7 +601,7 @@ export function LotPage() {
     return <NotFoundPage title="Лот не найден" text="Лот снят с публикации, продан или ссылка устарела." />;
   }
   if (!lot) {
-    return <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Загрузка…</div>;
+    return <LotSkeleton mobile={isMobile} />;
   }
   return isMobile ? <ScreenLot lot={lot} feed={feed} /> : <LotView lot={lot} feed={feed} />;
 }

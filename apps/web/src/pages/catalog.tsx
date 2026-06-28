@@ -27,12 +27,39 @@ function LotCard({ lot, onOpen, onToggleFav }: { lot: LotDto; onOpen: () => void
   );
 }
 
+function CatalogSkeletonCard({ mobile = false }: { mobile?: boolean }) {
+  return (
+    <div className={`${mobile ? 'card' : 'wcard'} sk-card`} style={{ padding: 0 }}>
+      <div className="sk" style={{ height: 182 }} />
+      <div style={{ padding: '14px 16px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14 }}>
+          <div className="sk sk-line" style={{ width: '58%' }} />
+          <div className="sk sk-line" style={{ width: 42 }} />
+        </div>
+        <div className="sk sk-line" style={{ width: '74%', marginTop: 12 }} />
+        <div className="sk sk-line" style={{ width: '46%', marginTop: 10 }} />
+        <hr style={{ height: 1, background: 'var(--line-soft)', border: 0, margin: '16px 0' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18 }}>
+          <div style={{ flex: 1 }}>
+            <div className="sk sk-line" style={{ width: 68 }} />
+            <div className="sk sk-line" style={{ width: '82%', height: 20, marginTop: 10 }} />
+          </div>
+          <div style={{ width: 86 }}>
+            <div className="sk sk-line" style={{ width: 62, marginLeft: 'auto' }} />
+            <div className="sk sk-line" style={{ width: 76, height: 16, marginTop: 10, marginLeft: 'auto' }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CatalogPage() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const now = useNow();
   const { filter, q, setFilter, setQ } = useUiStore();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCatalog(filter, q);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useCatalog(filter, q);
   const lots = data?.items ?? [];
   // Отдельный запрос «всё» — для тикера ставок и счётчика «в эфире»
   const { data: allData } = useCatalog('all', '');
@@ -76,7 +103,9 @@ export function CatalogPage() {
             ))}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '13px 18px 96px' }}>
-            {lots.length === 0
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <CatalogSkeletonCard key={i} mobile />)
+              : lots.length === 0
               ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '54px 0', fontSize: 14 }}>Нет лотов в этой категории</div>
               : lots.map((lot) => <LotCard key={lot.id} lot={lot} onOpen={() => open(lot)} onToggleFav={fav(lot)} />)}
             {hasNextPage && (
@@ -114,7 +143,9 @@ export function CatalogPage() {
           </button>
         )}
       </div>
-      {lots.length === 0
+      {isLoading
+        ? <div className="grid">{Array.from({ length: 6 }).map((_, i) => <CatalogSkeletonCard key={i} />)}</div>
+        : lots.length === 0
         ? <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '80px 0' }}>Нет лотов в этой категории</div>
         : (
           <>
