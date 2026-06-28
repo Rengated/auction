@@ -9,6 +9,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { requestLoggingMiddleware } from './common/observability/request-logging.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -16,6 +17,7 @@ async function bootstrap() {
   // чтобы req.ip (для rate limit и Telegram-алертов) был адресом клиента, а не прокси.
   app.set('trust proxy', 1);
   app.use(cookieParser());
+  app.use(requestLoggingMiddleware);
   app.enableCors({
     origin: [process.env.WEB_ORIGIN ?? 'http://localhost:5173', process.env.ADMIN_ORIGIN ?? 'http://localhost:5174'],
     credentials: true,
