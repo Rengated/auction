@@ -120,6 +120,10 @@ services:
   uptime-kuma:
     image: louislam/uptime-kuma:1
     restart: unless-stopped
+    extra_hosts:
+      - "${DOMAIN}:host-gateway"
+      - "admin.${DOMAIN}:host-gateway"
+      - "status.${DOMAIN}:host-gateway"
     volumes:
       - uptimekuma:/app/data
 
