@@ -7,5 +7,6 @@ coverage/
 .env.local
 .DS_Store
 apps/api/uploads/
+backups/
 .turbo/
 *.tsbuildinfo

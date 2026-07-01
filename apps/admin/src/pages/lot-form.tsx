@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fmt } from '@hermes/shared';
+import { fmt, type AutotekaReportDto } from '@hermes/shared';
 import {
   useAddresses,
   useAdminLot,
+  useClearAutotekaImport,
   useCreateLot,
-  useDeleteAutoteka,
+  useCreateLotFromAutoteka,
   useDeletePhoto,
+  useImportAutoteka,
   useRelistLot,
   useSettings,
   useUpdateLot,
-  useUploadAutoteka,
   useUploadPhotos,
   type LotFormPayload,
 } from '../lib/queries';
 import { AI, Ic } from '../components/icons';
+import { useToast } from '../components/toast';
 
 interface FormState {
   make: string;
@@ -69,9 +71,122 @@ const isoToLocal = (iso: string): string => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
+const vehicleValue = (report: AutotekaReportDto, key: string): string =>
+  (report.vehicleInfo ?? []).find((item) => item.key.trim().toLowerCase() === key.toLowerCase())?.value.trim() ?? '';
+
+const vehicleFirstValue = (report: AutotekaReportDto, keys: string[]): string => {
+  for (const key of keys) {
+    const value = vehicleValue(report, key);
+    if (value) return value;
+  }
+  return '';
+};
+
+const vehicleFirstMatchingValue = (report: AutotekaReportDto, keys: string[], pattern: RegExp): string => {
+  for (const key of keys) {
+    const value = vehicleValue(report, key);
+    if (value && pattern.test(value)) return value;
+  }
+  return '';
+};
+
+const latestMileage = (report: AutotekaReportDto): number | null => {
+  const points = (report.mileage ?? []).filter((point) => point.mileage > 0);
+  if (!points.length) return null;
+  const dated = points
+    .map((point, index) => ({ point, index, time: point.date ? new Date(point.date).getTime() : Number.NaN }))
+    .sort((a, b) => {
+      const at = Number.isNaN(a.time) ? -Infinity : a.time;
+      const bt = Number.isNaN(b.time) ? -Infinity : b.time;
+      return at === bt ? a.index - b.index : at - bt;
+    });
+  return dated[dated.length - 1]?.point.mileage ?? null;
+};
+
+const parseEngine = (value: string): Pick<FormState, 'engine' | 'power'> => {
+  const parts = value.split('/').map((part) => part.trim()).filter(Boolean);
+  const powerPart = parts.find((part) => /л\.?\s*с/i.test(part));
+  return {
+    engine: parts[0] ?? value.trim(),
+    power: powerPart?.match(/\d[\d\s\u00a0\u202f]*/)?.[0]?.replace(/\D/g, '') ?? '',
+  };
+};
+
+const normalizeAutotekaFuel = (value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized.includes('gasoline') || normalized.includes('petrol') || normalized.includes('бенз')) return 'Бензин';
+  if (normalized.includes('diesel') || normalized.includes('диз')) return 'Дизель';
+  if (normalized.includes('electric') || normalized.includes('элект')) return 'Электро';
+  if (normalized.includes('hybrid') || normalized.includes('гибрид')) return 'Гибрид';
+  if (normalized.includes('lpg') || normalized.includes('cng') || normalized.includes('газ')) return 'Газ';
+  return '';
+};
+
+const normalizeAutotekaTransmission = (value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return '';
+  const speed = normalized.match(/(\d+)\s*-?\s*(?:speed|ступ|ст\.?)/i)?.[1];
+  if (normalized.includes('auto') || normalized.includes('automatic') || normalized.includes('автомат') || normalized.includes('акп')) {
+    return speed ? `Автомат · ${speed} ст.` : 'Автомат';
+  }
+  if (normalized.includes('manual') || normalized.includes('механ')) return 'Механика';
+  if (normalized.includes('robot') || normalized.includes('робот')) return 'Робот';
+  if (normalized.includes('variator') || normalized.includes('cvt') || normalized.includes('вариатор')) return 'Вариатор';
+  return '';
+};
+
+const normalizeAutotekaDrive = (value: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized.includes('рулев') || normalized.includes('руль') || normalized.includes('lhd') || normalized.includes('rhd')) return '';
+  if (normalized.includes('all') || normalized.includes('4wd') || normalized.includes('awd') || normalized.includes('4matic') || normalized.includes('пол')) return 'Полный';
+  if (normalized.includes('front') || normalized.includes('fwd') || normalized.includes('перед')) return 'Передний';
+  if (normalized.includes('rear') || normalized.includes('rwd') || normalized.includes('зад')) return 'Задний';
+  if (normalized.includes('2wd')) return 'Передний';
+  return '';
+};
+
+const autotekaFuelValue = (report: AutotekaReportDto): string => {
+  const direct = vehicleFirstValue(report, ['Топливо', 'Тип топлива', 'Вид топлива', 'Тип двигателя']);
+  const aggregate = vehicleFirstMatchingValue(report, ['Агрегаты'], /gasoline|petrol|diesel|electric|hybrid|бенз|диз|элект|гибрид|газ/i);
+  return normalizeAutotekaFuel(direct || aggregate);
+};
+
+const autotekaTransmissionSource = (report: AutotekaReportDto): string =>
+  vehicleFirstValue(report, ['Коробка передач', 'КПП', 'АКП', 'Трансмиссия', 'Тип КПП']) ||
+  vehicleFirstMatchingValue(report, ['Агрегаты'], /акп|кп|автомат|manual|automatic|auto|cvt|вариатор|ступен/i);
+
+const autotekaDriveValue = (report: AutotekaReportDto, transmissionSource: string): string => {
+  const direct = vehicleFirstValue(report, ['Привод', 'Тип привода']);
+  const modelHint = vehicleFirstMatchingValue(report, ['Обозначение модели', 'Модификация', 'Комплектация'], /4matic|quattro|xdrive|4motion|allgrip|awd|4wd|fwd|rwd|2wd/i);
+  return normalizeAutotekaDrive(direct || modelHint || transmissionSource);
+};
+
+const autotekaFieldPatch = (report: AutotekaReportDto): Partial<FormState> => {
+  const engine = parseEngine(vehicleValue(report, 'Двигатель'));
+  const mileage = latestMileage(report);
+  const transmissionSource = autotekaTransmissionSource(report);
+  return {
+    make: report.brand?.trim() ?? '',
+    model: report.model?.trim() ?? '',
+    year: report.year ? String(report.year) : '',
+    mileage: mileage ? fmt(mileage) : '',
+    vin: report.vin?.trim() ?? '',
+    body: vehicleValue(report, 'Тип ТС') || vehicleValue(report, 'Кузов'),
+    engine: engine.engine,
+    power: engine.power,
+    fuel: autotekaFuelValue(report),
+    transmission: normalizeAutotekaTransmission(transmissionSource),
+    drive: autotekaDriveValue(report, transmissionSource),
+    color: vehicleValue(report, 'Цвет'),
+  };
+};
+
 export function LotFormPage({ relist }: { relist?: boolean }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const editing = Boolean(id) && !relist;
   const { data: lot } = useAdminLot(id);
 
@@ -81,17 +196,17 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
   const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const pdfRef = useRef<HTMLInputElement>(null);
 
   const { data: settings } = useSettings();
   const { data: addresses = [] } = useAddresses();
   const createM = useCreateLot();
+  const createFromAutoteka = useCreateLotFromAutoteka();
   const updateM = useUpdateLot(id ?? '');
   const relistM = useRelistLot(id ?? '');
   const upload = useUploadPhotos(id ?? '');
   const delPhoto = useDeletePhoto(id ?? '');
-  const uploadPdf = useUploadAutoteka(id ?? '');
-  const deletePdf = useDeleteAutoteka(id ?? '');
+  const importAutoteka = useImportAutoteka(id ?? '');
+  const clearAutotekaImport = useClearAutotekaImport(id ?? '');
   const mutation = id ? (relist ? relistM : updateM) : createM;
 
   useEffect(() => {
@@ -151,6 +266,8 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
     setErrors(errs);
     if (errs.length) return;
 
+    const bidStep = form.bidStep.trim() ? num(form.bidStep) : NaN;
+
     const payload: LotFormPayload = {
       make: form.make.trim(),
       model: form.model.trim(),
@@ -170,7 +287,7 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       autotekaUrl: form.autotekaUrl.trim() || null,
       startPrice,
       reservePrice,
-      bidStep: form.bidStep.trim() ? num(form.bidStep) : null,
+      bidStep: Number.isNaN(bidStep) ? null : bidStep,
       feeRate: feePct != null ? feePct / 100 : null,
       startsAt: new Date(form.startsAt).toISOString(),
       endsAt: new Date(form.endsAt).toISOString(),
@@ -197,10 +314,25 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
     if (ok.length) upload.mutate(ok);
   };
 
-  const onPdf = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (file && id) uploadPdf.mutate(file);
+  const applyAutotekaFields = () => {
+    if (!lot?.autotekaReport) return;
+    const patch = autotekaFieldPatch(lot.autotekaReport);
+    const entries = Object.entries(patch).filter((entry): entry is [keyof FormState, string] => Boolean(entry[1]?.trim()));
+    const changed = entries.filter(([key, value]) => form[key].trim() !== value.trim());
+
+    if (!changed.length) {
+      toast.ok('Поля уже совпадают с Автотекой');
+      return;
+    }
+
+    setForm((current) => {
+      const next = { ...current };
+      for (const [key, value] of entries) {
+        next[key] = value;
+      }
+      return next;
+    });
+    toast.ok('Поля заполнены из Автотеки');
   };
 
   const crumb = relist ? 'Перевыставление' : editing ? 'Редактирование' : 'Новый лот';
@@ -210,6 +342,12 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
       ? `${form.make} ${form.model}`.trim() || 'Лот'
       : 'Добавить автомобиль';
   const accLabel = relist ? 'Запустить заново' : editing && lot?.published ? 'Сохранить' : 'Опубликовать лот';
+  const showDraftSave = !editing || relist || !lot?.published;
+  const canTogglePublished = !editing || relist || !lot?.published;
+  const publicationTitle = published ? 'Опубликован' : 'Черновик';
+  const publicationHint = canTogglePublished
+    ? published ? 'виден покупателям в каталоге' : 'скрыт от покупателей, только в админке'
+    : '';
 
   return (
     <div className="content fade">
@@ -220,7 +358,9 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
           <h1 style={{ font: '800 22px/1 var(--ui)', margin: 0, letterSpacing: '-0.02em' }}>{title}</h1>
         </div>
         <div className="form-head-actions" style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-          <button className="btn ghost" disabled={mutation.isPending} onClick={() => submit(false)}>Сохранить черновик</button>
+          {showDraftSave && (
+            <button className="btn ghost" disabled={mutation.isPending} onClick={() => submit(false)}>Сохранить черновик</button>
+          )}
           <button className="btn acc" disabled={mutation.isPending} onClick={() => submit(true)}>{accLabel}</button>
         </div>
       </div>
@@ -302,6 +442,110 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
             </div>
           </div>
 
+          {/* отчёт Автотеки */}
+          <div className="pcard">
+            <div className="ph">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ width: 26, height: 26, borderRadius: 7, background: '#d6f0e0', color: '#1f8a52', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 12, fontFamily: 'var(--num)' }}>А</span>
+                <div><h3>Автотека</h3><div className="sub">ссылка на отчёт и импорт данных</div></div>
+              </div>
+              {lot?.autotekaReport
+                ? <span className="sb sold"><span className="dot"></span> импортирована</span>
+                : <span className="sb fin">не импортирована</span>}
+            </div>
+            <div style={{ padding: 20 }}>
+              {importAutoteka.isError && (
+                <div style={{ marginBottom: 12, font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>
+                  Не удалось импортировать данные: {importAutoteka.error.message}
+                </div>
+              )}
+              {clearAutotekaImport.isError && (
+                <div style={{ marginBottom: 12, font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>
+                  Не удалось очистить импорт: {clearAutotekaImport.error.message}
+                </div>
+              )}
+              {createFromAutoteka.isError && (
+                <div style={{ marginBottom: 12, font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>
+                  Не удалось создать лот из Автотеки: {createFromAutoteka.error.message}
+                </div>
+              )}
+
+              <label className="fld-l">Ссылка на отчёт</label>
+              <input
+                className="in"
+                type="url"
+                inputMode="url"
+                value={form.autotekaUrl}
+                onChange={set('autotekaUrl')}
+                placeholder="https://avtoteka.ru/report/..."
+              />
+              <div className="hint">
+                Ссылка сохраняется вместе с лотом. Импорт подтягивает историю пробега, ДТП, проверки и часть полей автомобиля.
+              </div>
+
+              <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {id ? (
+                  <button
+                    className="btn sm"
+                    type="button"
+                    disabled={importAutoteka.isPending || (!form.autotekaUrl.trim() && !lot?.autotekaUrl)}
+                    onClick={() => importAutoteka.mutate(
+                      { url: form.autotekaUrl.trim() || undefined },
+                      {
+                        onSuccess: () => toast.ok('Данные Автотеки импортированы'),
+                        onError: (e) => toast.error(`Не удалось импортировать: ${e.message}`),
+                      },
+                    )}
+                  >
+                    {importAutoteka.isPending ? 'Импорт...' : lot?.autotekaReport ? 'Обновить импорт' : 'Импортировать'}
+                  </button>
+                ) : (
+                  <button
+                    className="btn sm"
+                    type="button"
+                    disabled={createFromAutoteka.isPending || !form.autotekaUrl.trim()}
+                    onClick={() => createFromAutoteka.mutate(
+                      { url: form.autotekaUrl.trim() },
+                      {
+                        onSuccess: (saved) => {
+                          toast.ok('Черновик создан из Автотеки');
+                          navigate(`/lots/${saved.id}/edit`);
+                        },
+                        onError: (e) => toast.error(`Не удалось создать: ${e.message}`),
+                      },
+                    )}
+                  >
+                    {createFromAutoteka.isPending ? 'Создание...' : 'Создать из Автотеки'}
+                  </button>
+                )}
+                {lot?.autotekaReport && (
+                  <>
+                    <button className="btn sm ghost" type="button" onClick={applyAutotekaFields}>
+                      Заполнить форму
+                    </button>
+                    <button
+                      className="btn sm ghost"
+                      type="button"
+                      disabled={!id || clearAutotekaImport.isPending}
+                      onClick={() => clearAutotekaImport.mutate(undefined, {
+                        onSuccess: () => toast.ok('Данные Автотеки очищены'),
+                        onError: (e) => toast.error(`Не удалось очистить: ${e.message}`),
+                      })}
+                    >
+                      {clearAutotekaImport.isPending ? 'Очистка...' : 'Очистить импорт'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="hint" style={{ marginTop: 10 }}>
+                {lot?.autotekaReport
+                  ? `${lot.autotekaReport.incidentsTitle ?? `${lot.autotekaReport.incidentsCount} происшествий`} · ${lot.autotekaReport.mileageSubtitle ?? 'пробег импортирован'}${lot.autotekaImportedAt ? ` · ${new Date(lot.autotekaImportedAt).toLocaleString('ru-RU')}` : ''}`
+                  : id ? 'Вставьте ссылку и импортируйте отчёт.' : 'Вставьте ссылку, чтобы создать черновик уже с данными автомобиля.'}
+              </div>
+            </div>
+          </div>
+
           <div className="pcard">
             <div className="ph"><h3>Автомобиль</h3></div>
             <div style={{ padding: 20 }}>
@@ -328,72 +572,6 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
             </div>
           </div>
 
-          {/* отчёт Автотеки */}
-          <div className="pcard">
-            <div className="ph">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 26, height: 26, borderRadius: 7, background: '#d6f0e0', color: '#1f8a52', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 12, fontFamily: 'var(--num)' }}>А</span>
-                <div><h3>Отчёт Автотеки</h3><div className="sub">проверка истории — показывается покупателю</div></div>
-              </div>
-              {lot?.autotekaPdfUrl
-                ? <span className="sb sold"><span className="dot"></span> прикреплён</span>
-                : <span className="sb fin">не прикреплён</span>}
-            </div>
-            <div style={{ padding: 20 }}>
-              {uploadPdf.isError && (
-                <div style={{ marginBottom: 12, font: '600 12.5px/1.4 var(--ui)', color: 'var(--live)' }}>
-                  Не удалось загрузить отчёт: {uploadPdf.error.message}
-                </div>
-              )}
-              {id && lot?.autotekaPdfUrl ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', border: '1px solid var(--line)', borderRadius: 10, background: 'var(--panel2)' }}>
-                  <span style={{ width: 22, height: 22, color: 'var(--accent)', flex: 'none' }}>{AI.doc}</span>
-                  <div style={{ flex: 1, font: '600 13.5px/1.2 var(--ui)' }}>PDF-отчёт прикреплён</div>
-                  <a className="btn sm" href={lot.autotekaPdfUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Открыть</a>
-                  <button
-                    className="iconbtn2"
-                    title="Удалить отчёт"
-                    disabled={deletePdf.isPending}
-                    onClick={() => deletePdf.mutate()}
-                    style={{ width: 30, height: 30, fontSize: 15 }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : id ? (
-                <>
-                  <div className="dz" style={{ cursor: 'pointer' }} onClick={() => pdfRef.current?.click()}>
-                    <Ic d={AI.doc} s={26} />
-                    <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>{uploadPdf.isPending ? 'Загрузка…' : 'Загрузить PDF-отчёт Автотеки'}</div>
-                    <div className="num" style={{ fontSize: 11 }}>PDF · до 25 МБ</div>
-                  </div>
-                  <input ref={pdfRef} type="file" accept="application/pdf" hidden onChange={onPdf} />
-                </>
-              ) : (
-                <div className="dz">
-                  <Ic d={AI.doc} s={26} />
-                  <div style={{ fontSize: 13.5, color: 'var(--dim)' }}>Сначала сохраните лот, затем прикрепите PDF</div>
-                  <div className="num" style={{ fontSize: 11 }}>PDF · до 25 МБ</div>
-                </div>
-              )}
-
-              {/* Альтернатива загрузке PDF — внешняя ссылка на отчёт */}
-              <div style={{ marginTop: 14 }}>
-                <label className="fld-l">…или ссылка на отчёт</label>
-                <input
-                  className="in"
-                  type="url"
-                  inputMode="url"
-                  value={form.autotekaUrl}
-                  onChange={set('autotekaUrl')}
-                  placeholder="https://avtoteka.ru/report/…"
-                />
-                <div className="hint">
-                  Если задана ссылка, она показывается покупателю вместо загруженного PDF. Сохраняется вместе с лотом.
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* правая колонка: параметры торгов */}
@@ -446,10 +624,12 @@ export function LotFormPage({ relist }: { relist?: boolean }) {
             <div className="ph"><div><h3>Публикация</h3><div className="sub">видимость в приложении</div></div></div>
             <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
               <div>
-                <div className="t" style={{ font: '600 14px/1 var(--ui)', color: published ? 'var(--ok)' : 'var(--gold)' }}>{published ? 'Опубликован' : 'Черновик'}</div>
-                <div className="hint" style={{ marginTop: 6 }}>{published ? 'виден покупателям в каталоге' : 'скрыт от покупателей, только в админке'}</div>
+                <div className="t" style={{ font: '600 14px/1 var(--ui)', color: published ? 'var(--ok)' : 'var(--gold)' }}>{publicationTitle}</div>
+                {publicationHint && <div className="hint" style={{ marginTop: 6 }}>{publicationHint}</div>}
               </div>
-              <div className={`tg ${published ? 'on' : ''}`} onClick={() => setPublished((p) => !p)} style={published ? { background: 'var(--ok)' } : undefined}></div>
+              {canTogglePublished && (
+                <div className={`tg ${published ? 'on' : ''}`} onClick={() => setPublished((p) => !p)} style={published ? { background: 'var(--ok)' } : undefined}></div>
+              )}
             </div>
           </div>
           <div className="pcard">

@@ -26,6 +26,8 @@ export type AdminLot = LotDto & {
   autotekaUrl: string | null;
   /** Загружен ли PDF-файл Автотеки (в отличие от внешней ссылки) */
   autotekaPdfAttached: boolean;
+  /** Когда структурированные данные Автотеки были импортированы */
+  autotekaImportedAt: string | null;
   /** Лот в архиве (скрыт из каталога и основных вкладок). */
   archived: boolean;
   /** Статус сделки лота (для ручного выбора победителя); null — сделки нет. */
@@ -259,6 +261,14 @@ export function useCreateLot() {
   });
 }
 
+export function useCreateLotFromAutoteka() {
+  const qc = useQueryClient();
+  return useMutation<{ id: string }, ApiError, { url: string }>({
+    mutationFn: (data) => post('/admin/lots/autoteka/draft', data),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
 /** Снятие лота с публикации: PATCH с полным payload и published:false → возврат в черновик. */
 export function useUnpublishLot() {
   const qc = useQueryClient();
@@ -362,6 +372,22 @@ export function useDeleteAutoteka(lotId: string) {
   const qc = useQueryClient();
   return useMutation<unknown, ApiError, void>({
     mutationFn: () => del(`/admin/lots/${lotId}/autoteka`),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+export function useImportAutoteka(lotId: string) {
+  const qc = useQueryClient();
+  return useMutation<AdminLot, ApiError, { url?: string }>({
+    mutationFn: (data) => post(`/admin/lots/${lotId}/autoteka/import`, data),
+    onSuccess: () => invalidateLots(qc),
+  });
+}
+
+export function useClearAutotekaImport(lotId: string) {
+  const qc = useQueryClient();
+  return useMutation<AdminLot, ApiError, void>({
+    mutationFn: () => del(`/admin/lots/${lotId}/autoteka/import`),
     onSuccess: () => invalidateLots(qc),
   });
 }

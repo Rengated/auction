@@ -20,6 +20,71 @@ export interface LotPhotoDto {
   sort: number;
 }
 
+export interface AutotekaDamageDto {
+  subject: string | null;
+  description: string | null;
+  severity: 'light' | 'damage' | 'severe' | 'unknown';
+}
+
+export interface AutotekaIncidentDto {
+  id: string;
+  date: string | null;
+  title: string;
+  source: string | null;
+  price: string | null;
+  details: string[];
+  damages: AutotekaDamageDto[];
+}
+
+export interface AutotekaMileagePointDto {
+  id: string;
+  date: string | null;
+  mileage: number;
+  title: string | null;
+  event: string | null;
+  source: string | null;
+  location: string | null;
+  anomaly: boolean;
+  description: string | null;
+}
+
+export interface AutotekaCheckDto {
+  id: string;
+  title: string;
+  status: 'ok' | 'warning' | 'bad' | 'unknown';
+  group: 'legal' | 'commercial' | 'vehicle';
+}
+
+export interface AutotekaOwnerDto {
+  title: string;
+  period: string | null;
+  duration: string | null;
+  type: string | null;
+  region: string | null;
+}
+
+export interface AutotekaReportDto {
+  uuid: string;
+  sourceUrl: string;
+  importedAt: string;
+  reportCreatedAt: string | null;
+  vin: string | null;
+  brand: string | null;
+  model: string | null;
+  year: number | null;
+  incidentsTitle: string | null;
+  incidentsCount: number;
+  mileageTitle: string | null;
+  mileageSubtitle: string | null;
+  mileageConclusion: { text: string; status: string | null } | null;
+  mileageHasAnomalies: boolean;
+  incidents: AutotekaIncidentDto[];
+  mileage: AutotekaMileagePointDto[];
+  checks: AutotekaCheckDto[];
+  owners: AutotekaOwnerDto[];
+  vehicleInfo: Array<{ key: string; value: string }>;
+}
+
 /** Публичная карточка лота (каталог + страница лота). Без PII и без reserve_price. */
 export interface LotDto {
   id: string;
@@ -59,6 +124,8 @@ export interface LotDto {
   address: string | null;
   /** Отчёт Автотеки: внешняя ссылка либо публичный URL загруженного PDF */
   autotekaPdfUrl: string | null;
+  /** Структурированный снимок данных Автотеки, импортированный администратором */
+  autotekaReport: AutotekaReportDto | null;
   /** true → медиа (фото/видео/PDF) удалено из хранилища по истечении срока после выдачи */
   mediaPurged?: boolean;
   /** Эффективная комиссия: своя у лота либо глобальная из настроек */

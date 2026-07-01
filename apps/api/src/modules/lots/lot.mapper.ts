@@ -1,5 +1,5 @@
 import type { Lot, LotPhoto } from '@prisma/client';
-import type { LotDto, LotPhotoDto, LotTickDto } from '@hermes/shared';
+import type { AutotekaReportDto, LotDto, LotPhotoDto, LotTickDto } from '@hermes/shared';
 
 const S3_PUBLIC = process.env.S3_PUBLIC_URL ?? 'http://localhost:9000/lots';
 
@@ -88,6 +88,7 @@ export function lotToDto(
     options: (lot.options as string[]) ?? [],
     address: lot.addressText ?? null,
     autotekaPdfUrl: autotekaPdfUrl(lot),
+    autotekaReport: (lot.autotekaReport as AutotekaReportDto | null) ?? null,
     mediaPurged: lot.mediaPurgedAt != null,
     feeRate: lot.feeRate != null ? Number(lot.feeRate) : defaults.feeRate,
     isFavorite: extra?.isFavorite,

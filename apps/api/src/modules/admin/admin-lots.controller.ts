@@ -31,7 +31,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { PAGE_LIMITS, WS_EVENTS } from '@hermes/shared';
+import { PAGE_LIMITS, WS_EVENTS, type AutotekaReportDto } from '@hermes/shared';
 import { CurrentUser, Roles, STAFF, type AuthUser } from '../../common/decorators';
 import { PageQueryDto } from '../../common/pagination.dto';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -41,6 +41,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { SettingsService } from '../settings/settings.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { MediaService } from './media.service';
+import { AutotekaImportService } from './autoteka-import.service';
 
 const MAX_MEDIA_PER_LOT = 150;
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
@@ -78,6 +79,11 @@ class LotFormDto {
   @IsOptional() @IsBoolean() published?: boolean;
 }
 
+class AutotekaImportDto {
+  /** Можно передать ссылку явно; если не передана — берём autotekaUrl у лота. */
+  @IsOptional() @IsString() url?: string;
+}
+
 @Roles(...STAFF)
 @Controller('admin/lots')
 export class AdminLotsController {
@@ -88,6 +94,7 @@ export class AdminLotsController {
     private readonly media: MediaService,
     private readonly realtime: RealtimeService,
     private readonly telegram: TelegramService,
+    private readonly autotekaImport: AutotekaImportService,
   ) {}
 
   @Get()
@@ -120,6 +127,33 @@ export class AdminLotsController {
     ]);
     const defaults = await this.settings.lotDefaults();
     return { items: lots.map((l) => this.toAdminDto(l, defaults)), total, limit, offset };
+  }
+
+  @Post('autoteka/draft')
+  async createFromAutoteka(@Body() dto: AutotekaImportDto) {
+    const source = dto.url?.trim();
+    if (!source) throw new BadRequestException('Укажите ссылку на отчёт Автотеки');
+    const report = await this.autotekaImport.importFromUrl(source);
+    const now = Date.now();
+    const startsAt = new Date(now + 24 * 60 * 60 * 1000);
+    const endsAt = new Date(now + 8 * 24 * 60 * 60 * 1000);
+    const lot = await this.prisma.lot.create({
+      data: {
+        ...this.autotekaLotFields(report),
+        startPrice: 1n,
+        reservePrice: 1n,
+        currentPrice: 1n,
+        startsAt,
+        endsAt,
+        originalEndsAt: endsAt,
+        published: false,
+        status: 'draft',
+        autotekaUrl: report.sourceUrl,
+        autotekaReport: report as unknown as Prisma.InputJsonValue,
+        autotekaImportedAt: new Date(report.importedAt),
+      },
+    });
+    return { id: lot.id };
   }
 
   @Get(':id')
@@ -161,9 +195,17 @@ export class AdminLotsController {
       ['draft', 'upcoming'].includes(existing.status) &&
       existing.bidCount === 0;
 
+    const keepTerminalPublished =
+      existing.published &&
+      dto.published === false &&
+      ['sold', 'finished', 'withdrawn'].includes(existing.status);
+
     const lot = await this.prisma.lot.update({
       where: { id },
-      data: await this.toUpdateData(dto, existing, revertToDraft ? 'draft' : undefined),
+      data: {
+        ...(await this.toUpdateData(dto, existing, revertToDraft ? 'draft' : undefined)),
+        ...(keepTerminalPublished ? { published: true } : {}),
+      },
     });
     if (lot.published && ['upcoming', 'live'].includes(lot.status)) await this.scheduleJobs(lot.id);
     if (!lot.published) await this.lifecycle.cancelJobs(lot.id);
@@ -188,6 +230,7 @@ export class AdminLotsController {
     if (!lot) throw new NotFoundException();
     if (lot.status === 'draft' || lot.status === 'upcoming') {
       this.assertFutureDates({ startsAt: lot.startsAt.toISOString(), endsAt: lot.endsAt.toISOString() });
+      this.assertReadyToPublish(lot);
     }
     const updated = await this.prisma.lot.update({
       where: { id },
@@ -209,6 +252,8 @@ export class AdminLotsController {
         ...(await this.toCreateData(dto)),
         relistedFromLotId: src.id,
         autotekaPdfKey: src.autotekaPdfKey,
+        autotekaReport: src.autotekaReport ?? Prisma.JsonNull,
+        autotekaImportedAt: src.autotekaImportedAt,
         photos: {
           create: src.photos.map((p) => ({ kind: p.kind, objectKey: p.objectKey, externalUrl: p.externalUrl, sort: p.sort })),
         },
@@ -337,6 +382,39 @@ export class AdminLotsController {
     return { ok: true };
   }
 
+  @Post(':id/autoteka/import')
+  async importAutoteka(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AutotekaImportDto) {
+    const lot = await this.prisma.lot.findUnique({ where: { id } });
+    if (!lot) throw new NotFoundException();
+    const source = dto.url?.trim() || lot.autotekaUrl?.trim();
+    if (!source) throw new BadRequestException('Укажите ссылку на отчёт Автотеки');
+    const report = await this.autotekaImport.importFromUrl(source);
+    const updated = await this.prisma.lot.update({
+      where: { id },
+      data: {
+        autotekaUrl: lot.autotekaUrl || report.sourceUrl,
+        autotekaReport: report as unknown as Prisma.InputJsonValue,
+        autotekaImportedAt: new Date(report.importedAt),
+      },
+      include: { photos: true, deal: { select: { status: true, winnerUserId: true } } },
+    });
+    const defaults = await this.settings.lotDefaults();
+    return this.toAdminDto(updated, defaults);
+  }
+
+  @Delete(':id/autoteka/import')
+  async clearAutotekaImport(@Param('id', ParseUUIDPipe) id: string) {
+    const lot = await this.prisma.lot.findUnique({ where: { id } });
+    if (!lot) throw new NotFoundException();
+    const updated = await this.prisma.lot.update({
+      where: { id },
+      data: { autotekaReport: Prisma.JsonNull, autotekaImportedAt: null },
+      include: { photos: true, deal: { select: { status: true, winnerUserId: true } } },
+    });
+    const defaults = await this.settings.lotDefaults();
+    return this.toAdminDto(updated, defaults);
+  }
+
   private toAdminDto(
     lot: Prisma.LotGetPayload<{ include: { photos: true } }> & {
       deal?: { status: DealStatus; winnerUserId: string } | null;
@@ -353,6 +431,7 @@ export class AdminLotsController {
       autotekaUrl: lot.autotekaUrl ?? null,
       /** Загружен ли PDF-файл (в отличие от внешней ссылки) */
       autotekaPdfAttached: Boolean(lot.autotekaPdfKey),
+      autotekaImportedAt: lot.autotekaImportedAt?.toISOString() ?? null,
       archived: Boolean(lot.archivedAt),
       /** Статус сделки лота (для ручного выбора победителя); null — сделки нет. */
       dealStatus: lot.deal?.status ?? null,
@@ -370,6 +449,148 @@ export class AdminLotsController {
     if (new Date(dto.endsAt).getTime() <= now) {
       throw new BadRequestException('Дата окончания уже прошла — укажите новые даты торгов');
     }
+  }
+
+  private assertReadyToPublish(lot: {
+    make: string;
+    model: string;
+    year: number;
+    startPrice: bigint;
+    reservePrice: bigint;
+  }): void {
+    const missing: string[] = [];
+    if (!lot.make.trim() || lot.make === 'Автомобиль') missing.push('марку');
+    if (!lot.model.trim() || lot.model === 'из Автотеки') missing.push('модель');
+    if (!lot.year || lot.year < 1900) missing.push('год выпуска');
+    if (lot.startPrice <= 1n) missing.push('стартовую цену');
+    if (lot.reservePrice <= 1n) missing.push('резерв');
+    if (missing.length) throw new BadRequestException(`Перед публикацией заполните ${missing.join(', ')}`);
+  }
+
+  private autotekaVehicleValue(report: AutotekaReportDto, key: string): string {
+    return (report.vehicleInfo ?? []).find((item) => item.key.trim().toLowerCase() === key.toLowerCase())?.value.trim() ?? '';
+  }
+
+  private autotekaFirstVehicleValue(report: AutotekaReportDto, keys: string[]): string {
+    for (const key of keys) {
+      const value = this.autotekaVehicleValue(report, key);
+      if (value) return value;
+    }
+    return '';
+  }
+
+  private autotekaFirstMatchingVehicleValue(report: AutotekaReportDto, keys: string[], pattern: RegExp): string {
+    for (const key of keys) {
+      const value = this.autotekaVehicleValue(report, key);
+      if (value && pattern.test(value)) return value;
+    }
+    return '';
+  }
+
+  private latestAutotekaMileage(report: AutotekaReportDto): number {
+    const points = (report.mileage ?? []).filter((point) => point.mileage > 0);
+    if (!points.length) return 0;
+    const sorted = points
+      .map((point, index) => ({ point, index, time: point.date ? new Date(point.date).getTime() : Number.NaN }))
+      .sort((a, b) => {
+        const at = Number.isNaN(a.time) ? -Infinity : a.time;
+        const bt = Number.isNaN(b.time) ? -Infinity : b.time;
+        return at === bt ? a.index - b.index : at - bt;
+      });
+    return sorted[sorted.length - 1]!.point.mileage;
+  }
+
+  private parseAutotekaEngine(value: string): { engine: string; power: number } {
+    const parts = value.split('/').map((part) => part.trim()).filter(Boolean);
+    const powerPart = parts.find((part) => /л\.?\s*с/i.test(part));
+    return {
+      engine: parts[0] ?? '',
+      power: Number(powerPart?.match(/\d[\d\s\u00a0\u202f]*/)?.[0]?.replace(/\D/g, '') ?? 0),
+    };
+  }
+
+  private normalizeAutotekaFuel(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return '';
+    if (normalized.includes('gasoline') || normalized.includes('petrol') || normalized.includes('бенз')) return 'Бензин';
+    if (normalized.includes('diesel') || normalized.includes('диз')) return 'Дизель';
+    if (normalized.includes('electric') || normalized.includes('элект')) return 'Электро';
+    if (normalized.includes('hybrid') || normalized.includes('гибрид')) return 'Гибрид';
+    if (normalized.includes('lpg') || normalized.includes('cng') || normalized.includes('газ')) return 'Газ';
+    return '';
+  }
+
+  private normalizeAutotekaTransmission(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return '';
+    const speed = normalized.match(/(\d+)\s*-?\s*(?:speed|ступ|ст\.?)/i)?.[1];
+    if (normalized.includes('auto') || normalized.includes('automatic') || normalized.includes('автомат') || normalized.includes('акп')) {
+      return speed ? `Автомат · ${speed} ст.` : 'Автомат';
+    }
+    if (normalized.includes('manual') || normalized.includes('механ')) return 'Механика';
+    if (normalized.includes('robot') || normalized.includes('робот')) return 'Робот';
+    if (normalized.includes('variator') || normalized.includes('cvt') || normalized.includes('вариатор')) return 'Вариатор';
+    return '';
+  }
+
+  private normalizeAutotekaDrive(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return '';
+    if (normalized.includes('рулев') || normalized.includes('руль') || normalized.includes('lhd') || normalized.includes('rhd')) return '';
+    if (normalized.includes('all') || normalized.includes('4wd') || normalized.includes('awd') || normalized.includes('4matic') || normalized.includes('пол')) return 'Полный';
+    if (normalized.includes('front') || normalized.includes('fwd') || normalized.includes('перед')) return 'Передний';
+    if (normalized.includes('rear') || normalized.includes('rwd') || normalized.includes('зад')) return 'Задний';
+    if (normalized.includes('2wd')) return 'Передний';
+    return '';
+  }
+
+  private autotekaFuelValue(report: AutotekaReportDto): string {
+    const direct = this.autotekaFirstVehicleValue(report, ['Топливо', 'Тип топлива', 'Вид топлива', 'Тип двигателя']);
+    const aggregate = this.autotekaFirstMatchingVehicleValue(report, ['Агрегаты'], /gasoline|petrol|diesel|electric|hybrid|бенз|диз|элект|гибрид|газ/i);
+    return this.normalizeAutotekaFuel(direct || aggregate);
+  }
+
+  private autotekaTransmissionSource(report: AutotekaReportDto): string {
+    return (
+      this.autotekaFirstVehicleValue(report, ['Коробка передач', 'КПП', 'АКП', 'Трансмиссия', 'Тип КПП']) ||
+      this.autotekaFirstMatchingVehicleValue(report, ['Агрегаты'], /акп|кп|автомат|manual|automatic|auto|cvt|вариатор|ступен/i)
+    );
+  }
+
+  private autotekaDriveValue(report: AutotekaReportDto, transmissionSource: string): string {
+    const direct = this.autotekaFirstVehicleValue(report, ['Привод', 'Тип привода']);
+    const modelHint = this.autotekaFirstMatchingVehicleValue(
+      report,
+      ['Обозначение модели', 'Модификация', 'Комплектация'],
+      /4matic|quattro|xdrive|4motion|allgrip|awd|4wd|fwd|rwd|2wd/i,
+    );
+    return this.normalizeAutotekaDrive(direct || modelHint || transmissionSource);
+  }
+
+  private autotekaLotFields(report: AutotekaReportDto): Pick<
+    Prisma.LotUncheckedCreateInput,
+    'make' | 'family' | 'model' | 'year' | 'mileage' | 'engine' | 'power' | 'fuel' | 'transmission' | 'drive' | 'body' | 'color' | 'vin' | 'description' | 'options'
+  > {
+    const model = report.model?.trim() || 'из Автотеки';
+    const engine = this.parseAutotekaEngine(this.autotekaVehicleValue(report, 'Двигатель'));
+    const transmissionSource = this.autotekaTransmissionSource(report);
+    return {
+      make: report.brand?.trim() || 'Автомобиль',
+      family: model.split(' ')[0] || model,
+      model,
+      year: report.year || new Date().getFullYear(),
+      mileage: this.latestAutotekaMileage(report),
+      engine: engine.engine,
+      power: engine.power,
+      fuel: this.autotekaFuelValue(report),
+      transmission: this.normalizeAutotekaTransmission(transmissionSource),
+      drive: this.autotekaDriveValue(report, transmissionSource),
+      body: this.autotekaVehicleValue(report, 'Тип ТС') || this.autotekaVehicleValue(report, 'Кузов'),
+      color: this.autotekaVehicleValue(report, 'Цвет'),
+      vin: report.vin?.trim() || null,
+      description: '',
+      options: [],
+    };
   }
 
   /** Снимок адреса из справочника: «label · fullAddress». null/undefined → снять. */

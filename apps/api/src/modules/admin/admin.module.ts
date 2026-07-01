@@ -14,6 +14,7 @@ import {
   AdminUsersController,
 } from './admin-misc.controllers';
 import { MediaModule } from './media.module';
+import { AutotekaImportService } from './autoteka-import.service';
 
 @Module({
   imports: [AuctionEngineModule, AuthModule, SettingsModule, NotificationsModule, MediaModule],
@@ -27,5 +28,6 @@ import { MediaModule } from './media.module';
     AdminSettingsController,
     AdminDashboardController,
   ],
+  providers: [AutotekaImportService],
 })
 export class AdminModule {}

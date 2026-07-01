@@ -138,6 +138,9 @@ model Lot {
   autotekaPdfKey String? @map("autoteka_pdf_key")
   /** Альтернатива загрузке: внешняя ссылка на отчёт Автотеки. Приоритетнее autotekaPdfKey. */
   autotekaUrl    String? @map("autoteka_url")
+  /** Структурированный снимок данных Автотеки для публичного экрана истории. */
+  autotekaReport Json?   @map("autoteka_report")
+  autotekaImportedAt DateTime? @map("autoteka_imported_at") @db.Timestamptz()
 
   /** Адрес осмотра/выдачи: FK в справочник + денормализованный снимок «label · fullAddress» */
   addressId   String?  @map("address_id") @db.Uuid
