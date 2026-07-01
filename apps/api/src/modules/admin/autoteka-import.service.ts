@@ -32,6 +32,18 @@ function parseCount(title: string | null): number {
   return m ? Number(m[0]) : 0;
 }
 
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+function incidentsTitle(count: number, fallback: string | null): string | null {
+  return count > 0 ? `${count} ${pluralRu(count, 'происшествие', 'происшествия', 'происшествий')}` : fallback;
+}
+
 function damageSeverity(crashType: unknown): AutotekaDamageDto['severity'] {
   if (crashType === 'yellow') return 'light';
   if (crashType === 'red') return 'damage';
@@ -118,6 +130,7 @@ export class AutotekaImportService {
     const incidents = this.normalizeIncidents(incidentCard);
     const mileage = this.normalizeMileage(mileageChart);
     const head = json.head ?? {};
+    const incidentGroupsCount = this.countIncidentGroups(incidentCard);
 
     return {
       uuid,
@@ -128,8 +141,8 @@ export class AutotekaImportService {
       brand: text(head.brand),
       model: text(head.model),
       year: numberOrNull(head.year),
-      incidentsTitle: text(incidentCard?.title),
-      incidentsCount: parseCount(text(incidentCard?.title)) || incidents.length,
+      incidentsTitle: incidentsTitle(incidentGroupsCount, text(incidentCard?.title)),
+      incidentsCount: incidentGroupsCount || parseCount(text(incidentCard?.title)) || incidents.length,
       mileageTitle: text(mileageChart?.title),
       mileageSubtitle: text(mileageChart?.subTitle),
       mileageConclusion: mileageChart?.conclusion
@@ -179,6 +192,18 @@ export class AutotekaImportService {
       }
     }
     return incidents;
+  }
+
+  private countIncidentGroups(card: AnyRecord | undefined): number {
+    const groups = card?.additional?.incidentEventsGroups;
+    if (!Array.isArray(groups)) return 0;
+    return groups.filter((group) => {
+      const events = Array.isArray(group?.events) ? group.events : [];
+      return events.some((event: AnyRecord) => {
+        const title = text(event?.label);
+        return title && /^дтп/i.test(title) && !/не найден[аоы]?$/i.test(title);
+      });
+    }).length;
   }
 
   private normalizeMileage(chart: AnyRecord | undefined): AutotekaMileagePointDto[] {

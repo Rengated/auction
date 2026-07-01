@@ -415,10 +415,20 @@ export function AutotekaReport({ lot }: { lot: LotDto }) {
 
         {lot.autotekaPdfUrl && (
           <a
+            className="autoteka-report-link"
             href={lot.autotekaPdfUrl}
             target="_blank"
             rel="noreferrer"
-            style={{ textDecoration: 'none', padding: '13px 15px', display: 'flex', gap: 10, alignItems: 'center', background: 'var(--surface-2)', borderTop: '1px solid var(--line-soft)', color: 'var(--text)' }}
+            style={{
+              textDecoration: 'none',
+              padding: '13px 15px',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              background: 'var(--surface-2)',
+              borderTop: '1px solid var(--line-soft)',
+              color: 'var(--text)',
+            }}
           >
             <Ic d={I.doc} s={16} />
             <span style={{ fontSize: 12.5, color: 'var(--text-dim)', flex: 1 }}>Полный отчёт о юридической чистоте</span>

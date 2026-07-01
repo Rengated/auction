@@ -55,6 +55,10 @@
   --gold:      #b6843a;
 }
 
+[data-theme="light"] .autoteka-report-link {
+  background: #ffffff !important;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; }
 
